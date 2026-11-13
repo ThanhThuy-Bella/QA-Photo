@@ -67,6 +67,7 @@ app/
   admin/defects/         Bảng lỗi, vị trí lỗi
 components/              UI dùng chung (PhotoSlot, CropModal, Lightbox…)
 lib/
+
   exportIE.ts            Tạo Excel (exceljs) + PDF (html2canvas + jsPDF) đúng format IE
   recap.ts               Đọc file recap
   image.ts               Nén ảnh, đo độ nét/độ sáng
