@@ -1,0 +1,135 @@
+# PROJECT MEMORY – QA Photo App (Báo cáo IE + Final report Hazzys)
+
+> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.2 (cắt ảnh + IE 2 nút + Final chèn ảnh GQS) – chờ deploy & test thực tế**.
+
+## 1. Mục tiêu
+QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (chụp dần, lưu nháp, xóa/chụp lại khi chưa đạt). Admin duyệt và xuất:
+1. **Báo cáo IE** (C/O marking – `수입상품 원산지표시 사진`) → Excel + PDF, đúng format file mẫu HSSH6AC15.xlsx / HSSH6B311.pdf.
+2. **Final report** (giai đoạn 2).
+
+## 2. Nguồn dữ liệu
+- File **HAZZYS Order Recap** – admin **upload lại** mỗi khi cập nhật. Đọc sheet **`Prod`** (dòng tiêu đề = dòng 2).
+- Cột dùng: `GO No`, `Cust. Style No`, `JO No`, `Color Code`, `Order Qty`, `Sewing Start Date`, `BPO Del Date`, `Style Desc(EN)`.
+- **Style in trên IE** = `Cust. Style No` (vd. WSSH6AC15).
+- **Lot** = phần `KR\d+` tách từ `JO No` (vd. `26M05665KR02` → KR02). JO đuôi lạ `…KR01::V::-` → gộp vào KR01.
+- **Nhóm hàng**: `Style Desc(EN)` bắt đầu `MEN` → **Men** (gồm Men Outlet); `WOMEN`/`LADIES` và `BOYS` (kids) → **Ladies**.
+- Upload lại recap: chỉ **thêm** JO/màu mới, cập nhật số liệu; **không xóa ảnh**. JO biến mất khỏi recap → báo admin, không tự xóa.
+
+## 3. Quy tắc ảnh (đã chốt)
+| Ảnh | Đơn vị chụp | IE | Final – Men | Final – Ladies/Boys |
+|---|---|---|---|---|
+| Mác sườn (1 ảnh) | Lot × màu | cột ① **và** ② | ✓ | ✓ |
+| Gập gói | Lot × màu | cột ③ | ✓ | – |
+| Thẻ bài | Lot × màu | – | ✓ | ✓ |
+| Thân trước | Style × màu – **dùng chung mọi lot** | – | ✓ | ✓ |
+| Ảnh lỗi (gợi ý ≤10 ảnh, không chặn cứng) | Lot × màu | – | ✓ | ✓ |
+| Ảnh thùng: mặt thùng + nhãn thùng (2 ảnh) | Lot × màu | – | ✓ | – |
+
+- Mác, gập gói, thẻ bài **chụp riêng từng lot** – không dùng lại ảnh lot khác (tránh nhầm).
+- Mỗi ảnh tự gắn nhãn: Style · JO · Màu · loại ảnh · tài khoản · thời gian.
+- **Ảnh lỗi**: bắt buộc chọn *Tên lỗi* + *Mức độ* (chỉ mức được phép theo bảng lỗi chuẩn) + *Vị trí* (cổ, nẹp, măng séc, sườn, gấu, túi…) + ghi chú tự do. Tên lỗi – vị trí in dưới ảnh trong Final report. Quá 10 ảnh → app nhắc, admin có thể đổi giới hạn.
+- Mỗi ô ảnh có **dòng hướng dẫn + ảnh mẫu** để QA chụp đúng góc (admin cài ảnh mẫu).
+- **Độ nét**: dùng camera gốc của điện thoại (độ phân giải đầy đủ, lấy nét tự động); app chỉ nén nhẹ (cạnh dài 1600px, JPEG 85%, ~0.3–0.4MB/ảnh); tự báo ảnh mờ/tối để chụp lại.
+
+### Bảng lỗi chuẩn (file lỗi.xlsx – admin sửa được trong app)
+| Defect name | Critical | Major | Minor |
+|---|---|---|---|
+| Dirt mark | | x | x |
+| Foreign yarn | | x | x |
+| Frayed yarn | | x | x |
+| Fullness | | x | x |
+| High/low placket | | x | x |
+| Hiking | | x | x |
+| Over stitching | | x | x |
+| Pleat | | x | x |
+| Poor shape | | x | x |
+| Poor stitching | | x | x |
+| Run off stitch | | x | x |
+| Skip stitch | | x | |
+| Slub | | x | x |
+| Stain | | x | x |
+| Thread end / join stitch | x | x | |
+(Đã chốt sửa chính tả: "Hightlow placket" → High/low placket, "Hikking" → Hiking.)
+
+**Vị trí lỗi (đã chốt):** Cổ, Nẹp áo, Măng séc, Sườn, Gấu, Túi, Vai, Tay, Thân sau, Đô + vị trí khác (gõ tay).
+
+## 4. Quy trình & trạng thái
+`Nháp` → (đủ ảnh) `Chờ duyệt` → Admin `Đã duyệt` hoặc `Bị trả lại` (kèm lý do) → QA chụp lại → `Chờ duyệt`.
+- **Lưu trữ: 6 tháng** – v1.0: trang *Tải về & dọn ảnh* tô đỏ và chọn sẵn bộ ảnh quá 6 tháng; admin bấm Tải ZIP → Xóa khỏi cloud (chưa có xóa tự động phía server).
+- QA được xóa/chụp lại khi chưa duyệt. Sau duyệt chỉ Admin sửa.
+- **Admin duyệt và xuất** (hiện tại: Ana).
+- **Tài khoản (đã chốt):** `thuytt@esquel.com` – admin; `QAinline` – tài khoản QA dùng chung (vai trò QA). **Không** ghi tên người chụp (đã chốt) – app chỉ lưu tài khoản + thời gian chụp.
+
+## 5. Xuất báo cáo IE (Cách A)
+- Admin tick nhiều lot (cùng style, có thể khác GO) → **1 file Excel + 1 file PDF**.
+- Excel: mỗi lot 1 sheet (tên sheet = lot), ô C2 = lot, B2 = Cust Style, mỗi màu 1 khối (header vàng + dòng ảnh). Ảnh đặt nổi → chỉnh tay được.
+- PDF: xuất từ chính file Excel (mỗi lot 1 trang A4, fit 1 trang).
+- Tên file: `<Style>_IE_<lot1>-<lot2>….xlsx/.pdf`.
+- Chỉ lot **đã duyệt** mới tick được.
+- Prototype bộ xuất (Python/openpyxl + LibreOffice) đã chạy OK với dữ liệu HSSH6B311 KR02–KR05.
+
+## 5b. Final report (chốt lại 13/11/2026)
+- **Báo cáo IE giữ nguyên mẫu ban đầu**: cột ① và ② là CÙNG 1 ảnh mác sườn, cùng vị trí; mỗi lot 1 trang/sheet; 2 nút Xuất Excel / Xuất PDF.
+- **Final report = file "Customer Audit input Report" xuất từ GQS** (sheet 1 = Final, sheet 2 = Measurement). App chỉ **chèn ảnh**, giữ nguyên form (chốt 13/11):
+  - **Ladies (mẫu HSSH6BC30.xlsx)** – 1 file / 1 style gộp mọi JO (B8 = danh sách JO ";", B10 = danh sách màu ";"). Chèn 3 khối dòng mới (cột A–F, ~6 ảnh/hàng):
+    - "Style Photo" ngay dưới dòng Factory (dòng 5–6): ảnh thân trước từng màu.
+    - "Defective  Photo" dưới bảng Appearance Inspection: ảnh lỗi.
+    - "Accessory  Photo" dưới Inspection Items, trên chữ ký: ảnh mác sườn + thẻ bài từng màu (nhiều dòng ảnh).
+  - **Men (mẫu HZSH6E201-T2)** – 1 file / JO × màu (B6 = JO, B8 = màu). Chèn vào ô có sẵn: PRESENTATION (≈H3:K10) = gập gói; DEFECT PICTURE (≈J25:L30) = ảnh lỗi; dưới chữ ký (≈A39:D52) = ảnh thùng.
+  - Đã nhận file GQS gốc Ladies.xlsx / Men.xlsx (13/11). File gốc có thể 1 hay nhiều JO (B6 ngăn ';') và nhiều màu (B8) – cả Men lẫn Ladies. Vị trí dòng thay đổi theo số lỗi → app tìm theo chữ ở cột A ('Factory', 'Style Confirmation', 'Inspection Items', 'QA Auditor:').
+  - Đã code lib/finalReport.ts (exceljs): Ladies chèn dòng (tự dời ô gộp), cột A–F đổi độ rộng như mẫu HSSH6BC30, header copy style 'Judgment Information'; Men đặt ảnh vào khung I3:L10 (PRESENTATION), I[SC+2]:L (DEFECT PICTURE), dưới QA Auditor +4 (thùng, 2 ảnh/hàng). Demo: Demo_Final_Ladies_chen_anh.xlsx, Demo_Final_Men_chen_anh.xlsx – chờ chị duyệt.
+  - Đã duyệt demo (13/11): vị trí/kích thước OK; Men nhiều màu → ô PRESENTATION chia lưới, mỗi màu 1 ảnh gập gói; Final chỉ xuất Excel (tự Save as PDF).
+- **Tự cắt ảnh (chốt 13/11):** app đặt sẵn khung cắt, QA chỉnh khung hoặc xoay 90° rồi bấm "Dùng ảnh"; chỉ lưu ảnh đã cắt.
+
+## 6. Màn hình (canvas thiết kế)
+1. QA – Danh sách việc (lọc Đang làm / Bị trả lại / Đã duyệt, tiến độ ảnh)
+2. QA – Chụp ảnh theo lot, tab màu (ô IE + ô Final, Lưu nháp / Gửi duyệt)
+3. Admin – Duyệt & xuất (bảng Lot (đuôi JO) × GO × màu, xem ảnh, Duyệt/Trả lại, Xuất IE PDF + Excel, Nhập file Recap)
+4. Trang IE A4 (xem trước)
+5. QA – Ảnh lỗi (chọn tên lỗi, vị trí, ghi chú)
+
+## 7. Công nghệ (đã chốt)
+PWA: Next.js + TypeScript + Tailwind, Supabase (Postgres + Storage ảnh), Vercel. QA mở link/QR → 'Thêm vào màn hình chính' như app, không cần cài từ store. Chụp bằng camera gốc điện thoại. Xuất Excel bằng exceljs (ảnh) + PDF.
+- **Dùng Supabase miễn phí** (Storage 1 GB, DB 500 MB). Ảnh nén cạnh dài **1600px** (~0.3–0.4 MB, vẫn đọc rõ mác khi in A4) → ~2.500–3.000 ảnh.
+- **Tải về & dọn ảnh** (admin): thanh dung lượng trên trang Admin; ≥80% cảnh báo vàng, ≥90% đỏ. Admin chọn lot (mặc định: lot đã xuất báo cáo, cũ nhất trước) → tải 1 file ZIP (thư mục Style/Lot/Màu + Excel/PDF IE đã xuất) → xác nhận → xóa ảnh khỏi cloud. Lot đã dọn vẫn giữ lịch sử, đánh dấu "Đã lưu trữ".
+- Vẫn tự xóa sau 6 tháng nếu admin chưa dọn.
+- Lưu ý gói free: project tự tạm dừng nếu 7 ngày không ai dùng (dùng hằng ngày thì không sao); băng thông tải ~5 GB/tháng.
+
+## 8. CSDL dự kiến
+- `recap_imports` (id, file_name, uploaded_by, uploaded_at, rows_added, rows_updated)
+- `jo_colors` (id, go_no, cust_style, jo_no, lot, color_code, order_qty, sew_start, bpo_date, category[Men/Ladies], active)
+- `photo_sets` (id, cust_style, lot, color_code, status, submitted_by, submitted_at, approved_by, approved_at, reject_reason)
+- `photos` (id, photo_set_id NULL, cust_style, color_code, type[label|fold|hangtag|front|defect|carton_face|carton_label], storage_path, taken_by, taken_at, deleted_at)
+  - `front` gắn theo style × màu (photo_set_id NULL) → dùng chung mọi lot.
+- `users` (id, name, role[qa|admin])
+- `exports` (id, type[IE|FINAL], lots[], file_xlsx, file_pdf, created_by, created_at)
+
+## 9. Giai đoạn
+- **GĐ1**: Nhập recap → QA chụp/nháp → Admin duyệt → Xuất IE Excel + PDF.
+- **GĐ2**: Final report (Men/Ladies), ảnh thùng, ảnh lỗi.
+- Ý tưởng chờ duyệt: OCR đọc mã màu trên mác để cảnh báo nhầm; khung căn ảnh + báo ảnh mờ; nhắc việc theo ngày may/BPOD.
+
+## 10. Câu hỏi còn mở
+1. Format Final report (chị gửi file mẫu khi làm GĐ2).
+
+## 11. Tiến độ code (v1.0 – 12/11/2026)
+**Đã xong (build OK, đã test bộ xuất Excel + PDF với ảnh HSSH6B311 KR02–KR05, test đọc recap SS27: 237 dòng JO × màu, KR01–KR06, Men 100 / Ladies 137):**
+- Đăng nhập (QAinline → qainline@qa-photo.local; admin thuytt@esquel.com), phân quyền RLS.
+- QA: danh sách JO (tab Đang làm / Bị trả lại / Đã duyệt, tìm kiếm, sắp theo ngày may), chụp theo tab màu, nén 1600px, cảnh báo mờ/tối, xóa/chụp lại, lưu nháp tự động, gửi duyệt từng màu; ảnh lỗi (tên lỗi + mức độ + vị trí + ghi chú).
+- Admin: duyệt/trả lại (lý do), duyệt hàng loạt, xuất IE Excel + PDF (mỗi lot 1 sheet/1 trang, gộp nhiều lot, tách file theo style), nhập recap (xem trước, đánh dấu JO không còn), dọn ảnh (ZIP + Excel IE → xóa → trạng thái Đã lưu trữ), sửa bảng lỗi / vị trí.
+
+**Cấu trúc thư mục:** xem README.md trong gói code (app/, components/, lib/, supabase/schema.sql).
+
+**Deploy:** chưa – cần chị tạo Supabase Free (Singapore) + chạy schema.sql + tạo 2 user + GitHub + Vercel (README mục 1–3).
+
+**Việc tiếp theo:**
+1. Deploy, test trên điện thoại QA thật (Android + iPhone), chỉnh ngưỡng mờ/tối nếu cảnh báo sai.
+2. Thu thập lỗi/góp ý → v1.1.
+3. Giai đoạn 2: Final report (chị gửi file mẫu).
+
+**Lỗi đã biết:** chưa có.
+
+## 12. Lịch sử phiên bản
+- **v1.0 (12/11/2026):** bản đầu Giai đoạn 1.
+- **v1.2 (13/11/2026):** màn hình **Cắt ảnh** (tự đặt khung: mác/nhãn/thẻ = vùng trắng lớn nhất, gập gói/áo/thùng = tách nền theo màu viền; kéo 4 góc, Xoay 90°, Tự cắt lại, Không cắt, Dùng ảnh) cho mọi loại ảnh kể cả ảnh lỗi; IE tách nút **Xuất Excel** / **Xuất PDF**; trang **Admin → Final report**: upload 1 hoặc nhiều file GQS → đọc JO (B6) + màu (B8) → bảng kiểm thiếu ảnh / chưa duyệt → **Chèn ảnh & tải Excel** (file *_anh.xlsx). Ảnh chưa duyệt vẫn được chèn (có cảnh báo).
+- **v1.1 (12/11/2026):** mọi ô ảnh (mác, gập gói, thẻ bài, thân trước, thùng) và ảnh lỗi đều có 2 nút **Chụp** (camera sau) và **Album** (chọn ảnh có sẵn trong điện thoại). Ảnh từ album vẫn được nén 1600px + kiểm tra mờ/tối như ảnh chụp. Ảnh HEIC không đọc được → báo hướng dẫn đổi camera sang JPG.
