@@ -33,3 +33,6 @@ export const KIND_INFO: Record<PhotoKind, { name: string; hint: string }> = {
 };
 
 export const SINGLE_KINDS: PhotoKind[] = ['label', 'fold', 'hangtag', 'front', 'carton_face', 'carton_label'];
+
+export const BPO_ALERT_DAYS = 5; // bắt đầu cảnh báo khi còn ≤ 5 ngày tới BPO date
+export const BPO_SEND_DAYS = 2; // QA phải gửi báo cáo cho buyer trước BPO date 2 ngày

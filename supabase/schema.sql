@@ -123,8 +123,9 @@ create table if not exists public.defect_positions (
 );
 
 insert into public.defect_positions (name, sort) values
-  ('Cổ', 1), ('Nẹp áo', 2), ('Măng séc', 3), ('Sườn', 4), ('Gấu', 5),
-  ('Túi', 6), ('Vai', 7), ('Tay', 8), ('Thân sau', 9), ('Đô', 10)
+  ('Collar', 1), ('Placket', 2), ('Cuff', 3), ('Side seam', 4), ('Hem', 5),
+  ('Pocket', 6), ('Shoulder', 7), ('Sleeve', 8), ('Back body', 9), ('Yoke', 10),
+  ('Front body', 11), ('Armhole', 12)
 on conflict (name) do nothing;
 
 -- ============ NHẬT KÝ ============

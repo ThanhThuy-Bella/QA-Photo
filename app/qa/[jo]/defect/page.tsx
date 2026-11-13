@@ -212,7 +212,7 @@ function DefectInner() {
 
             <section className="flex flex-col gap-2">
               <h2 className="text-[13px] font-bold">
-                Tên lỗi <span className="text-bad">*</span>
+                Tên lỗi – Defect <span className="text-bad">*</span>
               </h2>
               <div className="flex flex-wrap gap-2">
                 {types.map((t) => (
@@ -226,7 +226,7 @@ function DefectInner() {
             {type && (
               <section className="flex flex-col gap-2">
                 <h2 className="text-[13px] font-bold">
-                  Mức độ <span className="text-bad">*</span>
+                  Mức độ – Severity <span className="text-bad">*</span>
                 </h2>
                 <div className="flex gap-2">
                   {levels.map((l) => (
@@ -244,7 +244,7 @@ function DefectInner() {
 
             <section className="flex flex-col gap-2">
               <h2 className="text-[13px] font-bold">
-                Vị trí <span className="text-bad">*</span>
+                Vị trí lỗi – Part name <span className="text-bad">*</span>
               </h2>
               <div className="flex flex-wrap gap-2">
                 {positions.map((p) => (
@@ -253,14 +253,14 @@ function DefectInner() {
                   </Chip>
                 ))}
                 <Chip on={pos === '__other'} onClick={() => setPos('__other')}>
-                  Vị trí khác
+                  Other
                 </Chip>
               </div>
               {pos === '__other' && (
                 <input
                   value={otherPos}
                   onChange={(e) => setOtherPos(e.target.value)}
-                  placeholder="Gõ vị trí"
+                  placeholder="Gõ tiếng Anh, vd. Armhole"
                   className="h-11 rounded-xl border border-[#CBD2DA] px-3 text-sm"
                 />
               )}
@@ -271,7 +271,7 @@ function DefectInner() {
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="vd. bỏ 3 mũi, cách đầu cổ 2cm"
+                placeholder="Ghi chú (tiếng Anh), vd. 3 stitches skipped"
                 className="h-11 rounded-xl border border-[#CBD2DA] px-3 text-sm font-normal"
               />
             </label>

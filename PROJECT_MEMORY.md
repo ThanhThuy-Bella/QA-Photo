@@ -1,6 +1,6 @@
 # PROJECT MEMORY – QA Photo App (Báo cáo IE + Final report Hazzys)
 
-> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.2 (cắt ảnh + IE 2 nút + Final chèn ảnh GQS) – chờ deploy & test thực tế**.
+> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.4 – đang deploy (Supabase + GitHub QA-Photo xong; Vercel đang build lần đầu)**.
 
 ## 1. Mục tiêu
 QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (chụp dần, lưu nháp, xóa/chụp lại khi chưa đạt). Admin duyệt và xuất:
@@ -51,7 +51,7 @@ QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (c
 | Thread end / join stitch | x | x | |
 (Đã chốt sửa chính tả: "Hightlow placket" → High/low placket, "Hikking" → Hiking.)
 
-**Vị trí lỗi (đã chốt):** Cổ, Nẹp áo, Măng séc, Sườn, Gấu, Túi, Vai, Tay, Thân sau, Đô + vị trí khác (gõ tay).
+**Vị trí lỗi (tiếng Anh, khớp Part Name GQS – chốt v1.3):** Collar, Placket, Cuff, Side seam, Hem, Pocket, Shoulder, Sleeve, Back body, Yoke, Front body, Armhole + Other (gõ tay tiếng Anh).
 
 ## 4. Quy trình & trạng thái
 `Nháp` → (đủ ảnh) `Chờ duyệt` → Admin `Đã duyệt` hoặc `Bị trả lại` (kèm lý do) → QA chụp lại → `Chờ duyệt`.
@@ -131,5 +131,7 @@ PWA: Next.js + TypeScript + Tailwind, Supabase (Postgres + Storage ảnh), Verce
 
 ## 12. Lịch sử phiên bản
 - **v1.0 (12/11/2026):** bản đầu Giai đoạn 1.
+- **v1.4 (14/11/2026):** **Cảnh báo BPO date** trên trang Admin: JO × màu chưa duyệt ảnh khi còn ≤ 5 ngày tới BPOD; hạn gửi báo cáo buyer = BPOD − 2 ngày (nhãn: Quá hạn gửi buyer N ngày / Hôm nay phải gửi buyer / Còn N ngày). Có ô KPI, khối cảnh báo (8 dòng đầu, xem tất cả), cột BPOD tô màu, bộ lọc "Sắp đến BPOD". Tham số trong lib/config.ts (BPO_ALERT_DAYS=5, BPO_SEND_DAYS=2).
+- **v1.3 (14/11/2026):** khối **Defect Photo – Ảnh lỗi** nổi bật trong phần Final của màn hình chụp (xem 3 ảnh gần nhất + nút đỏ "+ Chụp / thêm ảnh lỗi"); vị trí lỗi đổi sang **tiếng Anh**; nhãn màn hình ảnh lỗi song ngữ; file `supabase/update_v1.3.sql` để đổi dữ liệu cũ.
 - **v1.2 (13/11/2026):** màn hình **Cắt ảnh** (tự đặt khung: mác/nhãn/thẻ = vùng trắng lớn nhất, gập gói/áo/thùng = tách nền theo màu viền; kéo 4 góc, Xoay 90°, Tự cắt lại, Không cắt, Dùng ảnh) cho mọi loại ảnh kể cả ảnh lỗi; IE tách nút **Xuất Excel** / **Xuất PDF**; trang **Admin → Final report**: upload 1 hoặc nhiều file GQS → đọc JO (B6) + màu (B8) → bảng kiểm thiếu ảnh / chưa duyệt → **Chèn ảnh & tải Excel** (file *_anh.xlsx). Ảnh chưa duyệt vẫn được chèn (có cảnh báo).
 - **v1.1 (12/11/2026):** mọi ô ảnh (mác, gập gói, thẻ bài, thân trước, thùng) và ảnh lỗi đều có 2 nút **Chụp** (camera sau) và **Album** (chọn ảnh có sẵn trong điện thoại). Ảnh từ album vẫn được nén 1600px + kiểm tra mờ/tối như ảnh chụp. Ảnh HEIC không đọc được → báo hướng dẫn đổi camera sang JPG.

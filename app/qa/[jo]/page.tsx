@@ -203,13 +203,35 @@ export default function CapturePage() {
             {info.category === 'Men' && slot('carton_face', { badge: 'Hàng Men' })}
             {info.category === 'Men' && slot('carton_label', { badge: 'Hàng Men' })}
           </div>
-          <Link
-            href={`/qa/${encodeURIComponent(jo)}/defect?color=${encodeURIComponent(color)}`}
-            className="flex items-center justify-between rounded-xl border border-dashed border-[#E0A3A3] bg-white p-3.5 text-bad"
-          >
-            <span className="text-sm font-semibold">Ảnh lỗi ({defects.length})</span>
-            <span className="text-sm">{editable ? 'Thêm / xem' : 'Xem'}</span>
-          </Link>
+          <div className="flex flex-col gap-2.5 rounded-xl border border-[#F1C4C4] bg-white p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] font-semibold">Defect Photo – Ảnh lỗi</div>
+                <div className="text-[11px] text-muted">{defects.length} ảnh · ghi tên lỗi, mức độ, vị trí (tiếng Anh) để in vào Final report</div>
+              </div>
+              <span className="rounded-md bg-bad-soft px-1.5 py-0.5 text-[10px] font-medium text-bad">Final report</span>
+            </div>
+            {defects.length > 0 && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {defects.slice(-3).map((p) => {
+                  const cap = `${p.defect_name} (${p.severity}) – ${p.position}`;
+                  return (
+                    <button key={p.id} onClick={() => setView({ src: urls[p.path], cap })} className="flex flex-col gap-0.5 text-left">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={urls[p.path]} alt={cap} className="h-16 w-full rounded-md bg-[#EEF0F3] object-cover" />
+                      <span className="text-[10px] leading-tight text-muted">{cap}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <Link
+              href={`/qa/${encodeURIComponent(jo)}/defect?color=${encodeURIComponent(color)}`}
+              className={`flex h-11 items-center justify-center rounded-lg text-sm font-semibold ${editable ? 'bg-bad text-white' : 'border border-line text-ink'}`}
+            >
+              {editable ? '+ Chụp / thêm ảnh lỗi' : `Xem ${defects.length} ảnh lỗi`}
+            </Link>
+          </div>
         </section>
       </div>
 

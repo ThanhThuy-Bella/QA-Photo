@@ -9,12 +9,15 @@ import { KIND_INFO, STORAGE_LIMIT_BYTES, STATUS_INFO } from '@/lib/config';
 import type { JoColor, Photo, PhotoKind, PhotoSet, SetStatus } from '@/lib/types';
 import { AdminNav, ErrorBox, Spinner, StatusChip, btn, fmtDate, fmtMB } from '@/components/ui';
 import { Lightbox } from '@/components/Lightbox';
+import { ALERT_CLS, bpoAlert, type BpoAlert } from '@/lib/bpo';
+import { BPO_ALERT_DAYS, BPO_SEND_DAYS } from '@/lib/config';
 
 interface Row extends JoColor {
   set?: PhotoSet;
   status: SetStatus;
   ie: number;
   key: string;
+  alert: BpoAlert | null;
 }
 
 type PhotoLite = Pick<Photo, 'id' | 'set_id' | 'kind' | 'size_bytes'>;
@@ -26,7 +29,7 @@ export default function AdminReview() {
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [q, setQ] = useState('');
-  const [fStatus, setFStatus] = useState<'live' | SetStatus>('live');
+  const [fStatus, setFStatus] = useState<'live' | 'alert' | SetStatus>('live');
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<Row | null>(null);
   const [selPhotos, setSelPhotos] = useState<Photo[]>([]);
@@ -58,7 +61,8 @@ export default function AdminReview() {
         const key = `${r.jo_no}|${r.color_code}`;
         const set = setMap.get(key);
         if (!r.in_recap && !set) return;
-        out.push({ ...r, set, status: set?.status || 'draft', ie: set ? ie.get(set.id)?.size || 0 : 0, key });
+        const status = set?.status || 'draft';
+        out.push({ ...r, set, status, ie: set ? ie.get(set.id)?.size || 0 : 0, key, alert: bpoAlert(r.bpo_date, status) });
       });
       out.sort((a, b) => a.cust_style.localeCompare(b.cust_style) || a.lot.localeCompare(b.lot) || a.jo_no.localeCompare(b.jo_no) || a.color_code.localeCompare(b.color_code));
       setRows(out);
@@ -89,11 +93,19 @@ export default function AdminReview() {
   const shown = useMemo(() => {
     const s = q.trim().toUpperCase();
     return (rows || []).filter((r) => {
-      if (fStatus === 'live' ? r.status === 'archived' : r.status !== fStatus) return false;
+      if (fStatus === 'alert') {
+        if (!r.alert) return false;
+      } else if (fStatus === 'live' ? r.status === 'archived' : r.status !== fStatus) return false;
       if (!s) return true;
       return [r.cust_style, r.jo_no, r.go_no || '', r.color_code, r.lot].some((x) => x.toUpperCase().includes(s));
     });
   }, [rows, q, fStatus]);
+
+  const alerts = useMemo(
+    () => (rows || []).filter((r) => r.alert).sort((a, b) => a.alert!.daysToSend - b.alert!.daysToSend || (a.bpo_date || '').localeCompare(b.bpo_date || '')),
+    [rows],
+  );
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
 
   const kpi = useMemo(() => {
     const c = { submitted: 0, draft: 0, approved: 0, rejected: 0 };
@@ -206,8 +218,9 @@ export default function AdminReview() {
     <main className="min-h-screen">
       <AdminNav active="review" />
       <div className="mx-auto flex max-w-[1360px] flex-col gap-4 px-4 py-5 md:px-6">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {[
+            { l: `Cảnh báo BPOD (≤${BPO_ALERT_DAYS} ngày)`, v: alerts.length, c: alerts.length ? 'text-bad' : 'text-ok' },
             { l: 'Chờ duyệt', v: kpi.submitted, c: 'text-brand-dark' },
             { l: 'Đang chụp (nháp)', v: kpi.draft, c: 'text-warn' },
             { l: 'Đã duyệt', v: kpi.approved, c: 'text-ok' },
@@ -225,6 +238,50 @@ export default function AdminReview() {
           </Link>
         </div>
 
+        {alerts.length > 0 && (
+          <section className="flex flex-col gap-2 rounded-xl border border-bad/40 bg-white p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-bold text-bad">⚠ Cảnh báo BPO date – {alerts.length} JO × màu chưa duyệt ảnh</h2>
+              <span className="text-xs text-muted">
+                Cảnh báo từ {BPO_ALERT_DAYS} ngày trước BPOD · hạn gửi báo cáo buyer = BPOD − {BPO_SEND_DAYS} ngày
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-[13px]">
+                <tbody>
+                  {(showAllAlerts ? alerts : alerts.slice(0, 8)).map((r) => (
+                    <tr key={r.key} className="border-t border-[#EEF0F3] first:border-t-0">
+                      <td className="py-1.5 pr-2">
+                        <span className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ${ALERT_CLS[r.alert!.level]}`}>{r.alert!.label}</span>
+                      </td>
+                      <td className="px-2 py-1.5 font-semibold">{r.cust_style}</td>
+                      <td className="px-2 py-1.5">
+                        {r.lot} · {r.color_code}
+                      </td>
+                      <td className="px-2 py-1.5 text-muted">{r.jo_no}</td>
+                      <td className="px-2 py-1.5">BPOD {fmtDate(r.bpo_date)}</td>
+                      <td className="px-2 py-1.5">
+                        <StatusChip status={r.status} />
+                      </td>
+                      <td className="px-2 py-1.5">IE {r.ie}/2</td>
+                      <td className="py-1 pl-2 text-right">
+                        <button onClick={() => openRow(r)} className={btn.small}>
+                          Xem ảnh
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {alerts.length > 8 && (
+              <button onClick={() => setShowAllAlerts((v) => !v)} className="self-start text-sm text-brand underline">
+                {showAllAlerts ? 'Thu gọn' : `Xem tất cả ${alerts.length} dòng`}
+              </button>
+            )}
+          </section>
+        )}
+
         {err && <ErrorBox text={err} />}
         {msg && <div className="rounded-xl border border-ok/30 bg-ok-soft p-3 text-sm text-ok">{msg}</div>}
 
@@ -237,8 +294,9 @@ export default function AdminReview() {
               </label>
               <label className="flex flex-col gap-0.5 text-[11px] text-muted">
                 Trạng thái
-                <select value={fStatus} onChange={(e) => setFStatus(e.target.value as 'live' | SetStatus)} className="h-9 rounded-lg border border-[#CBD2DA] px-2 text-[13px] text-ink">
+                <select value={fStatus} onChange={(e) => setFStatus(e.target.value as 'live' | 'alert' | SetStatus)} className="h-9 rounded-lg border border-[#CBD2DA] px-2 text-[13px] text-ink">
                   <option value="live">Tất cả (trừ đã lưu trữ)</option>
+                  <option value="alert">⚠ Sắp đến BPOD (≤{BPO_ALERT_DAYS} ngày)</option>
                   {(Object.keys(STATUS_INFO) as SetStatus[]).map((s) => (
                     <option key={s} value={s}>
                       {STATUS_INFO[s].label}
@@ -268,7 +326,7 @@ export default function AdminReview() {
               {!rows ? (
                 <Spinner />
               ) : (
-                <table className="w-full min-w-[760px] border-collapse text-[13px]">
+                <table className="w-full min-w-[840px] border-collapse text-[13px]">
                   <thead>
                     <tr className="bg-[#F7F8FA] text-left text-muted">
                       <th className="w-10 px-3 py-2">
@@ -281,6 +339,7 @@ export default function AdminReview() {
                       <th className="px-2 py-2 font-semibold">Màu</th>
                       <th className="px-2 py-2 font-semibold">Ảnh IE</th>
                       <th className="px-2 py-2 font-semibold">Ngày may</th>
+                      <th className="px-2 py-2 font-semibold">BPOD</th>
                       <th className="px-2 py-2 font-semibold">Trạng thái</th>
                       <th className="px-3 py-2" />
                     </tr>
@@ -299,6 +358,11 @@ export default function AdminReview() {
                         <td className={`px-2 py-2 ${r.ie === 2 ? 'text-ok' : 'text-warn'}`}>{r.ie}/2</td>
                         <td className="px-2 py-2">{fmtDate(r.sew_start)}</td>
                         <td className="px-2 py-2">
+                          <span className={r.alert ? `rounded-md px-1.5 py-0.5 text-xs font-semibold ${ALERT_CLS[r.alert.level]}` : ''} title={r.alert?.label}>
+                            {fmtDate(r.bpo_date)}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
                           <StatusChip status={r.status} />
                           {!r.in_recap && <span className="ml-1 text-[11px] text-bad">không còn trong recap</span>}
                         </td>
@@ -311,7 +375,7 @@ export default function AdminReview() {
                     ))}
                     {shown.length === 0 && (
                       <tr>
-                        <td colSpan={10} className="p-6 text-center text-muted">
+                        <td colSpan={11} className="p-6 text-center text-muted">
                           {rows.length === 0 ? 'Chưa có dữ liệu – vào "Nhập recap" để tải file.' : 'Không có dòng nào khớp bộ lọc.'}
                         </td>
                       </tr>
