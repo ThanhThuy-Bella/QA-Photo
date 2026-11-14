@@ -12,5 +12,5 @@ export const BUCKET = 'photos';
 /** "QAinline" -> qainline@qa-photo.local ; email giữ nguyên */
 export function loginEmail(input: string) {
   const v = input.trim().toLowerCase();
-  return v.includes('@') ? v : `${v}@qa-photo.local`;
+  return v.includes('@') ? v : `${v}@thv.com`;
 }
