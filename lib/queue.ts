@@ -15,7 +15,11 @@ export interface UploadJob {
   style: string;
   color: string;
   jo: string;
-  blob: Blob;
+  /** Ảnh lưu dạng ArrayBuffer (iPhone/Zalo hay làm hỏng Blob lưu trong IndexedDB). */
+  data?: ArrayBuffer;
+  type?: string;
+  /** Bản cũ (v1.5–1.8) lưu Blob – vẫn đọc được nếu còn tốt. */
+  blob?: Blob;
   width: number;
   height: number;
   defect?: { name: string; severity: Severity; position: string; note: string };
@@ -63,8 +67,25 @@ export async function listJobs(): Promise<UploadJob[]> {
   return all.sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export async function enqueue(job: Omit<UploadJob, 'id' | 'createdAt' | 'status' | 'tries'>) {
-  const full: UploadJob = { ...job, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: Date.now(), status: 'pending', tries: 0 };
+/** Lấy ảnh của job dưới dạng Blob (null nếu ảnh trong máy đã hỏng). */
+export function jobBlob(job: UploadJob): Blob | null {
+  if (job.data && job.data.byteLength) return new Blob([job.data], { type: job.type || 'image/jpeg' });
+  if (job.blob && job.blob.size) return job.blob;
+  return null;
+}
+
+export async function enqueue(job: Omit<UploadJob, 'id' | 'createdAt' | 'status' | 'tries' | 'data' | 'type'> & { blob: Blob }) {
+  const { blob, ...rest } = job;
+  const data = await blob.arrayBuffer();
+  const full: UploadJob = {
+    ...rest,
+    data,
+    type: blob.type || 'image/jpeg',
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: Date.now(),
+    status: 'pending',
+    tries: 0,
+  };
   await tx(JOBS, 'readwrite', (s) => s.put(full));
   notify();
   void processQueue();
@@ -92,9 +113,18 @@ export async function processQueue() {
       if (!navigator.onLine) break;
       try {
         await putJob({ ...job, status: 'uploading' });
+        let blob = jobBlob(job);
+        if (blob) {
+          try {
+            blob = new Blob([await blob.arrayBuffer()], { type: blob.type || 'image/jpeg' });
+          } catch {
+            blob = null;
+          }
+        }
+        if (!blob || !blob.size) throw new Error('Ảnh lưu trong máy bị hỏng – bấm "Bỏ ảnh" rồi chụp lại.');
         const setId = isShared(job.kind) ? null : (await getOrCreateSet(job.jo, job.color)).id;
         await uploadPhoto({
-          img: { blob: job.blob, width: job.width, height: job.height },
+          img: { blob, width: job.width, height: job.height },
           kind: job.kind,
           style: job.style,
           color: job.color,

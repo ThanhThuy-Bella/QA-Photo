@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useRequire } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { deletePhotos, signedUrls } from '@/lib/photos';
-import { clearDraft, enqueue, loadDraft, saveDraft, useQueue, type UploadJob } from '@/lib/queue';
+import { clearDraft, enqueue, jobBlob, loadDraft, removeJob, saveDraft, useQueue, type UploadJob } from '@/lib/queue';
 import { QueueBadge, UndoBar, useUndoDelete } from '@/components/Feedback';
 import type { Compressed } from '@/lib/image';
 import { DEFECT_PHOTO_HINT } from '@/lib/config';
@@ -234,6 +234,9 @@ function DefectInner() {
                 <div className={`border-t border-line p-1.5 text-center text-[10px] ${j.status === 'error' ? 'text-bad' : 'text-warn'}`}>
                   {j.status === 'error' ? '⚠ lỗi – tự thử lại' : '⏳ chờ tải lên'}
                 </div>
+                <button onClick={() => void removeJob(j.id)} className="h-10 border-t border-line text-[12px] font-semibold text-bad">
+                  Bỏ ảnh
+                </button>
               </div>
             ))}
             {shown.map((p) => (
@@ -381,10 +384,12 @@ function DefectInner() {
 function JobThumb({ job }: { job: UploadJob }) {
   const [u, setU] = useState('');
   useEffect(() => {
-    const x = URL.createObjectURL(job.blob);
+    const b = jobBlob(job);
+    if (!b) return;
+    const x = URL.createObjectURL(b);
     setU(x);
     return () => URL.revokeObjectURL(x);
-  }, [job.blob]);
+  }, [job]);
   // eslint-disable-next-line @next/next/no-img-element
   return <div className="h-20 bg-[#EEF0F3]">{u && <img src={u} alt="Ảnh lỗi chờ tải" className="h-full w-full object-cover opacity-80" />}</div>;
 }

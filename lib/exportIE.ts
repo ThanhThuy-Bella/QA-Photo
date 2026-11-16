@@ -50,14 +50,15 @@ export async function loadIEData(items: IEItem[], style: string, onProgress?: (m
   const { data: sh } = await supabase
     .from('photos')
     .select('*')
-    .is('set_id', null)
     .eq('kind', 'fold')
     .eq('cust_style', style)
     .in('color_code', Array.from(new Set(items.map((i) => i.color))))
     .order('created_at', { ascending: false });
   const sharedFold = (sh || []) as Photo[];
   const pick = (setId: number, kind: string) => photos.find((p) => p.set_id === setId && p.kind === kind);
-  const pickFold = (it: IEItem) => sharedFold.find((p) => p.color_code === it.color) || pick(it.setId, 'fold');
+  // Ưu tiên ảnh dùng chung (set_id null), sau đó ảnh của chính lot, cuối cùng ảnh gập gói của lot khác cùng màu
+  const pickFold = (it: IEItem) =>
+    sharedFold.find((p) => p.color_code === it.color && p.set_id === null) || pick(it.setId, 'fold') || sharedFold.find((p) => p.color_code === it.color);
 
   const byJo = new Map<string, { lot: string; items: IEItem[] }>();
   items.forEach((it) => {

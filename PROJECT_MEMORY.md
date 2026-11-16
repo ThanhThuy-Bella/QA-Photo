@@ -1,6 +1,6 @@
 # PROJECT MEMORY – QA Photo App (Báo cáo IE + Final report Hazzys)
 
-> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.8 – code xong, chờ upload GitHub (+ supabase/update_v1.5.sql nếu chưa chạy)**; app chạy tại https://qa-photo.vercel.app (QA: /qa).
+> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.9.1 – code xong, chờ upload GitHub (+ supabase/update_v1.5.sql nếu chưa chạy)**; app chạy tại https://qa-photo.vercel.app (QA: /qa).
 
 ## 1. Mục tiêu
 QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (chụp dần, lưu nháp, xóa/chụp lại khi chưa đạt). Admin duyệt và xuất:
@@ -131,6 +131,13 @@ PWA: Next.js + TypeScript + Tailwind, Supabase (Postgres + Storage ảnh), Verce
 
 ## 12. Lịch sử phiên bản
 - **v1.0 (12/11/2026):** bản đầu Giai đoạn 1.
+- **v1.9.1 (17/11/2026):** ảnh dùng chung (gập gói, thẻ bài, thùng) hiện cho mọi lot cùng màu kể cả dữ liệu cũ chưa chạy update_v1.5.sql (lấy ảnh cũ của lot này/lot khác cùng màu); IE lấy gập gói: dùng chung → của lot → của lot khác cùng màu. Ô mặt thùng chỉ hiện với hàng Men (style desc MEN…).
+- **v1.9 (17/11/2026) – sửa lỗi QA báo trên iPhone:**
+  - Ảnh chờ tải lưu dạng **ArrayBuffer** thay vì Blob trong IndexedDB (iPhone / trình duyệt trong Zalo làm hỏng Blob → ảnh hiện "?" và tải lên lỗi → nút Gửi duyệt bị khóa nên admin không nhận được). Ảnh cũ bị hỏng báo rõ "Ảnh lưu trong máy bị hỏng – Bỏ ảnh rồi chụp lại".
+  - Bấm badge trạng thái → bảng **Ảnh chờ tải lên**: xem lỗi cụ thể, **Thử tải lại tất cả**, **Bỏ ảnh** từng ảnh.
+  - Ảnh đang chờ/lỗi xóa được (nút Xóa ở ô ảnh, nút "Bỏ ảnh" ở ảnh lỗi chờ tải).
+  - Nút **Lưu nháp** là nút thật (thử tải lại rồi về danh sách).
+  - Khuyến nghị QA mở app bằng Safari/Chrome (Thêm vào màn hình chính), không mở trong Zalo.
 - **v1.8 (16/11/2026):** PDF IE **vẽ trực tiếp bằng canvas** (bỏ html2canvas – nguyên nhân chữ lệch ô khi trình duyệt tải font Noto Sans KR / Nanum Gothic Coding): chữ căn giữa bằng textBaseline 'middle', chờ font tải xong mới vẽ. Excel IE: dòng STYLE NO. cao 30, dòng tiêu đề vàng 36, mọi ô căn giữa ngang + dọc.
 - **v1.7 (16/11/2026, chốt theo chị):** Men – **PRESENTATION và DEFECT PICTURE luôn ở khung bên phải** như mẫu HZSH6E201, kể cả đơn 10–12 màu: khung chia lưới 2–4 cột (1 ảnh / ≤4 / ≤9 / >9), cột I–L nới lên 14 (18 khi > 4 ảnh), tự nới chiều cao các dòng trống trong khung khi thiếu chỗ. CARTON PHOTO dưới chữ ký: 3 ô/hàng (A–F), > 3 ảnh thì 6 ô/hàng (A–L).
 - **v1.6 (16/11/2026):** Final report chèn ảnh dạng **ô ảnh đều nhau**: mỗi ô cùng kích thước, viền mảnh, nền trắng, dải chú thích xám dưới ảnh (màu / lot / Side label / Hangtag / tên lỗi (mức độ) – vị trí). Ladies: Style Photo 6 ô/hàng (ảnh cắt vừa khung 3:4), Defective Photo 4 ô/hàng, Accessory 6 ô/hàng (giữ trọn ảnh); mác giống nhau giữa các lot gộp 1 ô ghi các lot. Men: nới cột I–L lên 14, PRESENTATION dùng vùng I4 → trên Style Confirmation, DEFECT PICTURE tới trên QA Auditor, khối CARTON PHOTO (tiêu đề xám) 3 ô/hàng dưới chữ ký. Ô ảnh vẽ bằng canvas ở độ phân giải ×2.

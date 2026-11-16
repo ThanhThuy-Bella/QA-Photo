@@ -1,20 +1,84 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { UNDO_SECONDS } from '@/lib/config';
-import type { UploadJob } from '@/lib/queue';
+import { jobBlob, removeJob, type UploadJob } from '@/lib/queue';
+import { KIND_INFO } from '@/lib/config';
 
-/** Trạng thái lưu: đã lưu cloud / đang chờ tải / lỗi. */
+/** Trạng thái lưu: đã lưu cloud / đang chờ tải / lỗi. Bấm vào để xem chi tiết, thử lại hoặc bỏ ảnh lỗi. */
 export function QueueBadge({ jobs, onRetry }: { jobs: UploadJob[]; onRetry: () => void }) {
+  const [open, setOpen] = useState(false);
   const err = jobs.filter((j) => j.status === 'error').length;
-  if (!jobs.length)
-    return <span className="whitespace-nowrap rounded-full bg-ok-soft px-2.5 py-1 text-[11px] font-semibold text-ok">● Đã lưu</span>;
-  if (err)
-    return (
-      <button onClick={onRetry} className="whitespace-nowrap rounded-full bg-bad-soft px-2.5 py-1 text-[11px] font-semibold text-bad">
-        ● {err} lỗi – Thử lại
+  const badge = !jobs.length ? (
+    <span className="whitespace-nowrap rounded-full bg-ok-soft px-2.5 py-1 text-[11px] font-semibold text-ok">● Đã lưu</span>
+  ) : err ? (
+    <button onClick={() => setOpen(true)} className="whitespace-nowrap rounded-full bg-bad-soft px-2.5 py-1 text-[11px] font-semibold text-bad">
+      ● {err} lỗi – Xem
+    </button>
+  ) : (
+    <button onClick={() => setOpen(true)} className="whitespace-nowrap rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-semibold text-warn">
+      ● Chờ tải {jobs.length} ảnh
+    </button>
+  );
+  return (
+    <>
+      {badge}
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50" role="dialog" aria-modal="true">
+          <div className="flex max-h-[80vh] w-full max-w-[640px] flex-col gap-3 overflow-auto rounded-t-2xl bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+16px)] text-ink">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold">Ảnh chờ tải lên ({jobs.length})</h2>
+              <button onClick={() => setOpen(false)} className="h-10 px-3 text-sm text-muted">
+                Đóng
+              </button>
+            </div>
+            {jobs.length === 0 && <p className="text-sm text-ok">Tất cả ảnh đã lưu lên cloud.</p>}
+            {jobs.map((j) => (
+              <JobRow key={j.id} job={j} />
+            ))}
+            {jobs.length > 0 && (
+              <button onClick={onRetry} className="h-12 rounded-xl bg-brand text-sm font-semibold text-white">
+                Thử tải lại tất cả
+              </button>
+            )}
+            <p className="text-[11px] text-muted">
+              Nếu lỗi lặp lại: kiểm tra mạng, hoặc mở app bằng Safari/Chrome (không mở trong Zalo/Messenger) rồi chụp lại ảnh lỗi.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function JobRow({ job }: { job: UploadJob }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    const b = jobBlob(job);
+    if (!b) return;
+    const u = URL.createObjectURL(b);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [job]);
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-line p-2">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#EEF0F3] text-[10px] text-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : 'ảnh hỏng'}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-semibold">
+          {KIND_INFO[job.kind].name} · {job.color}
+        </div>
+        <div className={`text-[11px] ${job.status === 'error' ? 'text-bad' : 'text-muted'}`}>
+          {job.status === 'error' ? job.error || 'Lỗi tải lên' : job.status === 'uploading' ? 'Đang tải lên…' : 'Chờ tải lên'}
+          {job.tries ? ` · đã thử ${job.tries} lần` : ''}
+        </div>
+      </div>
+      <button onClick={() => void removeJob(job.id)} className="h-10 shrink-0 rounded-lg border border-[#F1C4C4] px-3 text-xs font-semibold text-bad">
+        Bỏ ảnh
       </button>
-    );
-  return <span className="whitespace-nowrap rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-semibold text-warn">● Chờ tải {jobs.length} ảnh</span>;
+    </div>
+  );
 }
 
 /** Hộp xác nhận trong app (thay window.confirm – một số trình duyệt như Zalo chặn confirm). */

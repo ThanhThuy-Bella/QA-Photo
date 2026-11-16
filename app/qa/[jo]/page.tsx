@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRequire } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { deletePhotos, getOrCreateSet, reusePhoto, signedUrls } from '@/lib/photos';
 import type { Compressed } from '@/lib/image';
 import { KIND_INFO, isShared } from '@/lib/config';
-import { enqueue, useQueue, type UploadJob } from '@/lib/queue';
+import { enqueue, jobBlob, removeJob, useQueue, type UploadJob } from '@/lib/queue';
 import type { JoColor, Photo, PhotoKind, PhotoSet } from '@/lib/types';
 import { ErrorBox, Spinner, StatusChip, TopBar, btn, fmtDate } from '@/components/ui';
 import { PhotoSlot } from '@/components/PhotoSlot';
@@ -23,6 +23,7 @@ interface OtherLabel {
 
 export default function CapturePage() {
   const auth = useRequire();
+  const router = useRouter();
   const params = useParams<{ jo: string }>();
   const jo = decodeURIComponent(params.jo);
   const [rows, setRows] = useState<JoColor[]>([]);
@@ -30,6 +31,7 @@ export default function CapturePage() {
   const [photos, setPhotos] = useState<Photo[]>([]); // ảnh riêng lot (theo set)
   const [shared, setShared] = useState<Photo[]>([]); // ảnh dùng chung style × màu
   const [others, setOthers] = useState<Record<string, OtherLabel[]>>({}); // ảnh mác các lot khác, theo màu
+  const [legacy, setLegacy] = useState<Photo[]>([]); // ảnh gập gói/thẻ bài/thùng cũ còn lưu theo lot (trước v1.5)
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [color, setColor] = useState('');
   const [busy, setBusy] = useState('');
@@ -69,8 +71,16 @@ export default function CapturePage() {
       const { data: os } = await supabase.from('photo_sets').select('*').in('jo_no', Array.from(new Set(otherRows.map((x) => x.jo_no))));
       const osets = ((os || []) as PhotoSet[]).filter((x) => colors.includes(x.color_code));
       if (osets.length) {
-        const { data: op } = await supabase.from('photos').select('*').in('set_id', osets.map((x) => x.id)).eq('kind', 'label').order('created_at');
-        ((op || []) as Photo[]).forEach((p) => {
+        const { data: op } = await supabase
+          .from('photos')
+          .select('*')
+          .in('set_id', osets.map((x) => x.id))
+          .in('kind', ['label', 'fold', 'hangtag', 'carton', 'carton_face'])
+          .order('created_at');
+        const all = (op || []) as Photo[];
+        setLegacy(all.filter((p) => p.kind !== 'label'));
+        extra.push(...all.filter((p) => p.kind !== 'label').map((p) => p.path));
+        all.filter((p) => p.kind === 'label').forEach((p) => {
           const st = osets.find((x) => x.id === p.set_id)!;
           const rr = otherRows.find((x) => x.jo_no === st.jo_no && x.color_code === st.color_code);
           (map[st.color_code] ||= []).push({ lot: rr?.lot || st.jo_no, jo: st.jo_no, photo: p });
@@ -113,7 +123,10 @@ export default function CapturePage() {
   );
   const jobUrls = useMemo(() => {
     const m: Record<string, string> = {};
-    myJobs.forEach((j) => (m[j.id] = URL.createObjectURL(j.blob)));
+    myJobs.forEach((j) => {
+      const b = jobBlob(j);
+      if (b) m[j.id] = URL.createObjectURL(b);
+    });
     return m;
   }, [myJobs]);
   useEffect(() => () => Object.values(jobUrls).forEach((u) => URL.revokeObjectURL(u)), [jobUrls]);
@@ -140,8 +153,15 @@ export default function CapturePage() {
 
   const latest = (kind: PhotoKind, c = color) => {
     const setId = sets.find((s) => s.color_code === c)?.id;
-    const list = isShared(kind) ? shared.filter((p) => p.kind === kind && p.color_code === c) : photos.filter((p) => p.set_id === setId && p.kind === kind);
-    return list.filter((p) => !undo.isHidden(p.id)).slice(-1)[0];
+    if (isShared(kind)) {
+      const sh = shared.filter((p) => p.kind === kind && p.color_code === c && !undo.isHidden(p.id)).slice(-1)[0];
+      if (sh) return sh;
+      // Dữ liệu cũ (trước v1.5) còn lưu theo lot: lấy ảnh của lot này hoặc lot khác cùng màu
+      const kinds = kind === 'carton' ? ['carton', 'carton_face'] : [kind];
+      const old = [...photos.filter((p) => p.set_id === setId), ...legacy].filter((p) => kinds.includes(p.kind) && p.color_code === c);
+      return old.slice(-1)[0];
+    }
+    return photos.filter((p) => p.set_id === setId && p.kind === kind && !undo.isHidden(p.id)).slice(-1)[0];
   };
   const pendingOf = (kind: PhotoKind) => myJobs.filter((j) => j.kind === kind).slice(-1)[0];
   const ieCount = (c: string) => {
@@ -210,7 +230,7 @@ export default function CapturePage() {
         editable={editable}
         busy={busy === kind}
         onPick={(f) => setCrop({ kind, file: f })}
-        onDelete={() => p && !job && undo.remove(p)}
+        onDelete={() => (job ? void removeJob(job.id) : p && undo.remove(p))}
         onView={() => url && setView({ src: url, cap: `${KIND_INFO[kind].name} · ${color}` })}
       />
     );
@@ -287,8 +307,8 @@ export default function CapturePage() {
                 {pendDefects.map((j) => (
                   <div key={j.id} className="flex flex-col gap-0.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={jobUrls[j.id]} alt="Ảnh lỗi chờ tải" className="h-16 w-full rounded-md object-cover opacity-70" />
-                    <span className="text-[10px] text-warn">⏳ chờ tải lên</span>
+                    <img src={jobUrls[j.id]} alt="Ảnh lỗi chờ tải" className="h-16 w-full rounded-md bg-[#EEF0F3] object-cover opacity-70" />
+                    <span className={`text-[10px] ${j.status === 'error' ? 'text-bad' : 'text-warn'}`}>{j.status === 'error' ? '⚠ lỗi tải' : '⏳ chờ tải lên'}</span>
                   </div>
                 ))}
                 {defects.slice(-6).map((p) => {
@@ -336,9 +356,15 @@ export default function CapturePage() {
                 : `Còn thiếu ảnh IE ở màu ${color} – ảnh đã chụp được tự lưu nháp`}
           </p>
           <div className="flex gap-2.5">
-            <Link href="/qa" className={`${btn.ghost} flex flex-1 items-center justify-center`}>
+            <button
+              onClick={() => {
+                retry();
+                router.push('/qa');
+              }}
+              className={`${btn.ghost} flex-1`}
+            >
               Lưu nháp
-            </Link>
+            </button>
             <button disabled={!editable || !ieReady || waiting || busy === 'submit'} onClick={() => setAskSubmit(true)} className={`${btn.primary} flex-[1.4]`}>
               {busy === 'submit' ? 'Đang gửi…' : `Gửi duyệt màu ${color}`}
             </button>
