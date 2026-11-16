@@ -136,7 +136,7 @@ export async function buildIEWorkbook(style: string, sheets: IESheet[]): Promise
       c.alignment = { horizontal: 'center', vertical: 'middle' };
       c.border = BOX;
     });
-    ws.getRow(2).height = 26.25;
+    ws.getRow(2).height = 30;
     ws.getRow(3).height = 26.25;
 
     sh.colors.forEach((col, k) => {
@@ -153,7 +153,7 @@ export async function buildIEWorkbook(style: string, sheets: IESheet[]): Promise
         p.border = BOX;
         p.alignment = { horizontal: 'center', vertical: 'middle' };
       });
-      ws.getRow(hr).height = 30;
+      ws.getRow(hr).height = 36;
       ws.getRow(pr).height = PHOTO_ROW_PT;
 
       const labelId = wb.addImage({ base64: col.label, extension: 'jpeg' });
@@ -182,81 +182,126 @@ export async function buildIEWorkbook(style: string, sheets: IESheet[]): Promise
   return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-function esc(s: string) {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error('Không đọc được ảnh'));
+    i.src = src;
+  });
 }
 
-function pageHtml(style: string, sh: IESheet) {
-  // Mọi ô chữ dùng line-height cố định = chiều cao ô để html2canvas vẽ chữ đúng giữa ô.
-  const cell = 'border-right:1px solid #000;display:flex;align-items:center;justify-content:center;padding:8px;box-sizing:border-box;';
-  const head = (t: string, last = false) => {
-    const [a, b] = t.split('\n');
-    return `<div style="${last ? '' : 'border-right:1px solid #000;'}height:44px;box-sizing:border-box;padding-top:7px;text-align:center;font-size:10px;font-weight:700">
-      <div style="height:15px;line-height:15px">${esc(a.trim())}</div><div style="height:15px;line-height:15px">${esc(b.trim())}</div></div>`;
+const KR = '"Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+const MONO = '"Nanum Gothic Coding", "DejaVu Sans Mono", Consolas, monospace';
+
+/**
+ * Vẽ 1 trang IE trực tiếp lên canvas (không dùng html2canvas) để chữ luôn nằm đúng giữa ô.
+ * Kích thước chuẩn 794 × 1123 px (A4 @96dpi), vẽ ở độ phân giải ×2.
+ */
+async function drawIEPage(style: string, sh: IESheet): Promise<HTMLCanvasElement> {
+  const W = 794;
+  const L = 26;
+  const TW = W - L * 2; // 742
+  const COLS = [254, 255, TW - 509];
+  const HEAD_H = 44;
+  const ROW_H = 232;
+  const top = 56;
+  const tableY = top + 76;
+  const blockY = tableY + 30 + 22;
+  const H = Math.max(1123, blockY + sh.colors.length * (HEAD_H + ROW_H) + 40);
+  const S = 2;
+  const c = document.createElement('canvas');
+  c.width = W * S;
+  c.height = H * S;
+  const ctx = c.getContext('2d')!;
+  ctx.scale(S, S);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000000';
+  ctx.strokeStyle = '#000000';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const text = (t: string, x: number, y: number, font: string, maxW?: number) => {
+    ctx.font = font;
+    ctx.fillText(t, x, y, maxW);
   };
-  const rows = sh.colors
-    .map(
-      (c, i) => `
-    <div style="${i ? 'border-top:2px solid #000;' : ''}">
-      <div style="display:grid;grid-template-columns:254px 255px 1fr;background:#FFFF00;border-bottom:1px solid #000;height:44px">
-        ${head(HEAD[0])}${head(HEAD[1])}${head(HEAD[2], true)}
-      </div>
-      <div style="display:grid;grid-template-columns:254px 255px 1fr;height:232px">
-        <div style="${cell}"><img src="${c.label}" style="max-width:236px;max-height:214px;object-fit:contain"></div>
-        <div style="${cell}"><img src="${c.label}" style="max-width:236px;max-height:214px;object-fit:contain"></div>
-        <div style="${cell}border-right:0"><img src="${c.fold}" style="max-width:210px;max-height:214px;object-fit:contain"></div>
-      </div>
-    </div>`,
-    )
-    .join('');
-  const box = (t: string, last = false) =>
-    `<div style="${last ? '' : 'border-right:1px solid #000;'}height:30px;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden">${esc(t)}</div>`;
-  return `
-  <div style="width:794px;min-height:1123px;box-sizing:border-box;background:#fff;padding:56px 26px 40px;font-family:'Noto Sans KR','Malgun Gothic',sans-serif;color:#000">
-    <div style="text-align:center;font-size:19px;height:30px;line-height:30px">■ 수입상품 원산지표시 사진 <span style="font-family:'Nanum Gothic Coding',monospace;font-size:15px">(SAMPLE)</span> ■</div>
-    <div style="text-align:center;font-family:'Nanum Gothic Coding',monospace;font-size:15px;height:24px;line-height:24px;margin-bottom:22px">required images of C/O marking on imported goods</div>
-    <div style="display:grid;grid-template-columns:254px 255px 1fr;border:2px solid #000;font-family:'Nanum Gothic Coding',monospace;font-size:15px;margin-bottom:22px">
-      ${box('STYLE NO.')}${box(style)}${box(sh.lot, true)}
-    </div>
-    <div style="border:2px solid #000">${rows}</div>
-  </div>`;
-}
+  const line = (x1: number, y1: number, x2: number, y2: number, w: number) => {
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  };
+  const colX = (i: number) => L + COLS.slice(0, i).reduce((a, b) => a + b, 0);
 
-async function waitImages(el: HTMLElement) {
-  const imgs = Array.from(el.querySelectorAll('img'));
-  await Promise.all(
-    imgs.map((img) => (img.complete ? Promise.resolve() : new Promise<void>((r) => ((img.onload = () => r()), (img.onerror = () => r()))))),
-  );
+  // Tiêu đề
+  text('■ 수입상품 원산지표시 사진 (SAMPLE) ■', W / 2, top + 15, `19px ${KR}`);
+  text('required images of C/O marking on imported goods', W / 2, top + 44, `15px ${MONO}`);
+
+  // Dòng STYLE NO. | style | lot
+  ctx.lineWidth = 2;
+  ctx.strokeRect(L, tableY, TW, 30);
+  line(colX(1), tableY, colX(1), tableY + 30, 1);
+  line(colX(2), tableY, colX(2), tableY + 30, 1);
+  [ 'STYLE NO.', style, sh.lot ].forEach((t, i) => text(t, colX(i) + COLS[i] / 2, tableY + 15, `15px ${MONO}`, COLS[i] - 8));
+
+  // Các khối màu
+  const heads = HEAD.map((h) => h.split('\n').map((x) => x.trim()));
+  let y = blockY;
+  for (let k = 0; k < sh.colors.length; k++) {
+    const col = sh.colors[k];
+    ctx.fillStyle = '#FFFF00';
+    ctx.fillRect(L, y, TW, HEAD_H);
+    ctx.fillStyle = '#000000';
+    heads.forEach((h, i) => {
+      text(h[0], colX(i) + COLS[i] / 2, y + HEAD_H / 2 - 8, `bold 10px ${KR}`, COLS[i] - 6);
+      text(h[1], colX(i) + COLS[i] / 2, y + HEAD_H / 2 + 8, `bold 10px ${KR}`, COLS[i] - 6);
+    });
+    line(L, y + HEAD_H, L + TW, y + HEAD_H, 1);
+    if (k > 0) line(L, y, L + TW, y, 2);
+    const imgs = await Promise.all([loadImage(col.label), loadImage(col.fold)]);
+    const draw = (im: HTMLImageElement, i: number, maxW: number) => {
+      const s2 = Math.min(maxW / im.naturalWidth, 214 / im.naturalHeight);
+      const w = im.naturalWidth * s2;
+      const h = im.naturalHeight * s2;
+      ctx.drawImage(im, colX(i) + (COLS[i] - w) / 2, y + HEAD_H + (ROW_H - h) / 2, w, h);
+    };
+    draw(imgs[0], 0, 236);
+    draw(imgs[0], 1, 236);
+    draw(imgs[1], 2, 210);
+    line(colX(1), y, colX(1), y + HEAD_H + ROW_H, 1);
+    line(colX(2), y, colX(2), y + HEAD_H + ROW_H, 1);
+    y += HEAD_H + ROW_H;
+  }
+  ctx.lineWidth = 2;
+  ctx.strokeRect(L, blockY, TW, y - blockY);
+  return c;
 }
 
 /** PDF: mỗi lot 1 trang A4, cùng bố cục với file Excel. */
 export async function buildIEPdf(style: string, sheets: IESheet[], onProgress?: (msg: string) => void): Promise<Blob> {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+  const { jsPDF } = await import('jspdf');
+  const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+  if (fonts) {
+    await Promise.all([fonts.load(`19px ${KR}`), fonts.load(`bold 10px ${KR}`), fonts.load(`15px ${MONO}`)]).catch(() => undefined);
+    await fonts.ready;
+  }
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
-  const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#fff;z-index:-1';
-  document.body.appendChild(host);
-  try {
-    for (let i = 0; i < sheets.length; i++) {
-      onProgress?.(`Đang dựng trang PDF ${i + 1}/${sheets.length}…`);
-      host.innerHTML = pageHtml(style, sheets[i]);
-      await waitImages(host);
-      if ((document as Document & { fonts?: FontFaceSet }).fonts) await document.fonts.ready;
-      const canvas = await html2canvas(host.firstElementChild as HTMLElement, { scale: 2, backgroundColor: '#ffffff', logging: false });
-      if (i > 0) pdf.addPage();
-      const pageW = 210;
-      const pageH = 297;
-      const ratio = canvas.height / canvas.width;
-      let w = pageW;
-      let h = pageW * ratio;
-      if (h > pageH) {
-        h = pageH;
-        w = pageH / ratio;
-      }
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', (pageW - w) / 2, 0, w, h);
+  for (let i = 0; i < sheets.length; i++) {
+    onProgress?.(`Đang dựng trang PDF ${i + 1}/${sheets.length}…`);
+    const canvas = await drawIEPage(style, sheets[i]);
+    if (i > 0) pdf.addPage();
+    const pageW = 210;
+    const pageH = 297;
+    const ratio = canvas.height / canvas.width;
+    let w = pageW;
+    let h = pageW * ratio;
+    if (h > pageH) {
+      h = pageH;
+      w = pageH / ratio;
     }
-  } finally {
-    host.remove();
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', (pageW - w) / 2, 0, w, h);
   }
   return pdf.output('blob');
 }
