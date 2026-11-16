@@ -1,6 +1,6 @@
 # PROJECT MEMORY – QA Photo App (Báo cáo IE + Final report Hazzys)
 
-> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.9.1 – code xong, chờ upload GitHub (+ supabase/update_v1.5.sql nếu chưa chạy)**; app chạy tại https://qa-photo.vercel.app (QA: /qa).
+> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.9.2 – code xong, chờ upload GitHub (+ supabase/update_v1.5.sql nếu chưa chạy)**; app chạy tại https://qa-photo.vercel.app (QA: /qa).
 
 ## 1. Mục tiêu
 QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (chụp dần, lưu nháp, xóa/chụp lại khi chưa đạt). Admin duyệt và xuất:
@@ -131,6 +131,7 @@ PWA: Next.js + TypeScript + Tailwind, Supabase (Postgres + Storage ảnh), Verce
 
 ## 12. Lịch sử phiên bản
 - **v1.0 (12/11/2026):** bản đầu Giai đoạn 1.
+- **v1.9.2 (17/11/2026):** sửa lỗi không bấm được nút ← quay lại trên iPhone (thanh tab màu dính đè lên header khi mở app từ màn hình chính – header + tab gộp thành 1 khối dính); sau khi Gửi duyệt hiện hộp "✓ Đã gửi duyệt màu X" với nút **Chụp tiếp màu …** và **Về danh sách JO (làm lot khác)**; nút dưới đổi thành "← Về danh sách" khi bộ ảnh đã gửi/duyệt.
 - **v1.9.1 (17/11/2026):** ảnh dùng chung (gập gói, thẻ bài, thùng) hiện cho mọi lot cùng màu kể cả dữ liệu cũ chưa chạy update_v1.5.sql (lấy ảnh cũ của lot này/lot khác cùng màu); IE lấy gập gói: dùng chung → của lot → của lot khác cùng màu. Ô mặt thùng chỉ hiện với hàng Men (style desc MEN…).
 - **v1.9 (17/11/2026) – sửa lỗi QA báo trên iPhone:**
   - Ảnh chờ tải lưu dạng **ArrayBuffer** thay vì Blob trong IndexedDB (iPhone / trình duyệt trong Zalo làm hỏng Blob → ảnh hiện "?" và tải lên lỗi → nút Gửi duyệt bị khóa nên admin không nhận được). Ảnh cũ bị hỏng báo rõ "Ảnh lưu trong máy bị hỏng – Bỏ ảnh rồi chụp lại".

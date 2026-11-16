@@ -41,6 +41,7 @@ export default function CapturePage() {
   const [crop, setCrop] = useState<{ kind: PhotoKind; file: File } | null>(null);
   const [askSubmit, setAskSubmit] = useState(false);
   const [reuseOpen, setReuseOpen] = useState(false);
+  const [sent, setSent] = useState('');
 
   const load = useCallback(async () => {
     const { data: r, error } = await supabase.from('jo_colors').select('*').eq('jo_no', jo).order('color_code');
@@ -206,6 +207,7 @@ export default function CapturePage() {
         .update({ status: 'submitted', submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', s.id);
       if (error) throw new Error(error.message);
+      setSent(color);
       await load();
     } catch (e) {
       setErr((e as Error).message);
@@ -243,6 +245,7 @@ export default function CapturePage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[640px] flex-col">
+      <div className="sticky top-0 z-30 bg-white">
       <TopBar
         title={`${info.cust_style} · ${info.lot}`}
         sub={`${jo} · ${info.category} · BPOD ${fmtDate(info.bpo_date)}`}
@@ -254,7 +257,7 @@ export default function CapturePage() {
           </div>
         }
       />
-      <div className="sticky top-[68px] z-10 flex gap-1 overflow-x-auto border-b border-line bg-white px-3">
+      <div className="flex gap-1 overflow-x-auto border-b border-line bg-white px-3">
         {rows.map((r) => (
           <button
             key={r.color_code}
@@ -264,6 +267,7 @@ export default function CapturePage() {
             {r.color_code} · IE {ieCount(r.color_code)}/2
           </button>
         ))}
+      </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pb-40">
@@ -363,7 +367,7 @@ export default function CapturePage() {
               }}
               className={`${btn.ghost} flex-1`}
             >
-              Lưu nháp
+              {editable ? 'Lưu nháp' : '← Về danh sách'}
             </button>
             <button disabled={!editable || !ieReady || waiting || busy === 'submit'} onClick={() => setAskSubmit(true)} className={`${btn.primary} flex-[1.4]`}>
               {busy === 'submit' ? 'Đang gửi…' : `Gửi duyệt màu ${color}`}
@@ -404,6 +408,34 @@ export default function CapturePage() {
         onOk={submit}
         onCancel={() => setAskSubmit(false)}
       />
+      {sent && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center" role="dialog" aria-modal="true">
+          <div className="flex w-full max-w-sm flex-col gap-3 rounded-2xl bg-white p-5 text-ink">
+            <h2 className="text-base font-bold">✓ Đã gửi duyệt màu {sent}</h2>
+            <p className="text-sm text-muted">
+              {info.cust_style} · {info.lot}. Admin sẽ duyệt trên trang Admin.
+            </p>
+            {(() => {
+              const next = rows.find((r) => r.color_code !== sent && (sets.find((x) => x.color_code === r.color_code)?.status || 'draft') !== 'approved' && (sets.find((x) => x.color_code === r.color_code)?.status || 'draft') !== 'submitted');
+              return next ? (
+                <button
+                  onClick={() => {
+                    setSent('');
+                    setColor(next.color_code);
+                    window.scrollTo({ top: 0 });
+                  }}
+                  className="h-12 rounded-xl border border-[#CBD2DA] text-sm font-semibold"
+                >
+                  Chụp tiếp màu {next.color_code}
+                </button>
+              ) : null;
+            })()}
+            <button onClick={() => router.push('/qa')} className="h-12 rounded-xl bg-brand text-sm font-semibold text-white">
+              Về danh sách JO (làm lot khác)
+            </button>
+          </div>
+        </div>
+      )}
       <UndoBar count={undo.pending.length} onUndo={undo.undo} />
       <Lightbox src={view?.src || null} caption={view?.cap} onClose={() => setView(null)} />
       {crop && <CropModal file={crop.file} kind={crop.kind} onCancel={() => setCrop(null)} onDone={(img) => save(crop.kind, img)} />}
