@@ -23,7 +23,7 @@ export default function QaList() {
         const [rows, sets, photos] = await Promise.all([
           fetchAll<JoColor>('jo_colors'),
           fetchAll<PhotoSet>('photo_sets'),
-          fetchAll<{ id: number; set_id: number | null; kind: string }>('photos', 'id,set_id,kind', (x) => x.in('kind', ['label', 'fold'])),
+          fetchAll<{ id: number; set_id: number | null; kind: string; cust_style: string; color_code: string }>('photos', 'id,set_id,kind,cust_style,color_code', (x) => x.in('kind', ['label', 'fold'])),
         ]);
         setList(summarize(rows, sets, photos));
       } catch (e) {

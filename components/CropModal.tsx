@@ -25,6 +25,7 @@ export function CropModal({
   const [box, setBox] = useState({ w: 300, h: 300, scale: 1 });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [warn, setWarn] = useState<{ msg: string; img: Compressed } | null>(null);
   const holder = useRef<HTMLDivElement>(null);
   const view = useRef<HTMLCanvasElement>(null);
   const drag = useRef<Drag>(null);
@@ -107,12 +108,9 @@ export function CropModal({
     setBusy(true);
     try {
       const out = await compressCanvas(useFull ? src : cropCanvas(src, rect));
-      const warn = qualityWarning(out);
-      if (warn && !window.confirm(`${warn}\nVẫn dùng ảnh này? (Bấm Hủy để chụp lại)`)) {
-        onCancel();
-        return;
-      }
-      onDone(out);
+      const msg = qualityWarning(out);
+      if (msg) setWarn({ msg, img: out });
+      else onDone(out);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -159,6 +157,21 @@ export function CropModal({
         )}
       </div>
 
+      {warn && (
+        <div className="mx-4 flex flex-col gap-2 rounded-xl bg-[#FFF7E8] p-3 text-sm text-[#6B4A0B]">
+          <span>
+            <b>{warn.msg}</b> Vẫn dùng ảnh này?
+          </span>
+          <div className="flex gap-2">
+            <button onClick={onCancel} className="h-10 flex-1 rounded-lg border border-[#E0C38A] font-semibold">
+              Chụp lại
+            </button>
+            <button onClick={() => onDone(warn.img)} className="h-10 flex-1 rounded-lg bg-[#6B4A0B] font-semibold text-white">
+              Vẫn dùng
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3">
         <div className="flex gap-2">
           <button disabled={!src || busy} onClick={rotate} className="h-11 flex-1 rounded-xl border border-[#3A4654] text-sm disabled:opacity-40">

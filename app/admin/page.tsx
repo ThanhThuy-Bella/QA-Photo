@@ -20,7 +20,7 @@ interface Row extends JoColor {
   alert: BpoAlert | null;
 }
 
-type PhotoLite = Pick<Photo, 'id' | 'set_id' | 'kind' | 'size_bytes'>;
+type PhotoLite = Pick<Photo, 'id' | 'set_id' | 'kind' | 'size_bytes' | 'cust_style' | 'color_code'>;
 
 export default function AdminReview() {
   const auth = useRequire('admin');
@@ -43,7 +43,7 @@ export default function AdminReview() {
       const [jc, sets, photos] = await Promise.all([
         fetchAll<JoColor>('jo_colors'),
         fetchAll<PhotoSet>('photo_sets'),
-        fetchAll<PhotoLite>('photos', 'id,set_id,kind,size_bytes'),
+        fetchAll<PhotoLite>('photos', 'id,set_id,kind,size_bytes,cust_style,color_code'),
       ]);
       const setMap = new Map(sets.map((s) => [`${s.jo_no}|${s.color_code}`, s]));
       const ie = new Map<number, Set<string>>();
@@ -56,13 +56,16 @@ export default function AdminReview() {
         }
       });
       setStorage(total);
+      const sharedFold = new Set(photos.filter((p) => p.set_id === null && p.kind === 'fold').map((p) => `${p.cust_style}|${p.color_code}`));
       const out: Row[] = [];
       jc.forEach((r) => {
         const key = `${r.jo_no}|${r.color_code}`;
         const set = setMap.get(key);
         if (!r.in_recap && !set) return;
         const status = set?.status || 'draft';
-        out.push({ ...r, set, status, ie: set ? ie.get(set.id)?.size || 0 : 0, key, alert: bpoAlert(r.bpo_date, status) });
+        const own = set ? ie.get(set.id) : undefined;
+        const ieN = Number(!!own?.has('label')) + Number(!!own?.has('fold') || sharedFold.has(`${r.cust_style}|${r.color_code}`));
+        out.push({ ...r, set, status, ie: ieN, key, alert: bpoAlert(r.bpo_date, status) });
       });
       out.sort((a, b) => a.cust_style.localeCompare(b.cust_style) || a.lot.localeCompare(b.lot) || a.jo_no.localeCompare(b.jo_no) || a.color_code.localeCompare(b.color_code));
       setRows(out);
@@ -84,7 +87,7 @@ export default function AdminReview() {
       const { data } = await supabase.from('photos').select('*').eq('set_id', r.set.id).order('created_at');
       list.push(...((data || []) as Photo[]));
     }
-    const { data: f } = await supabase.from('photos').select('*').is('set_id', null).eq('kind', 'front').eq('cust_style', r.cust_style).eq('color_code', r.color_code);
+    const { data: f } = await supabase.from('photos').select('*').is('set_id', null).eq('cust_style', r.cust_style).eq('color_code', r.color_code).order('created_at');
     list.push(...((f || []) as Photo[]));
     setSelPhotos(list);
     setUrls(await signedUrls(list.map((p) => p.path)));
@@ -212,7 +215,7 @@ export default function AdminReview() {
   if (!auth.ready) return <Spinner />;
   const pct = Math.round((storage / STORAGE_LIMIT_BYTES) * 100);
 
-  const kindOrder: PhotoKind[] = ['label', 'fold', 'hangtag', 'front', 'carton_face', 'carton_label', 'defect'];
+  const kindOrder: PhotoKind[] = ['label', 'fold', 'hangtag', 'front', 'carton', 'carton_face', 'carton_label', 'defect'];
 
   return (
     <main className="min-h-screen">

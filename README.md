@@ -14,7 +14,7 @@ Công nghệ: Next.js 14 · Supabase (gói Free) · Vercel.
    | Tài khoản | Email nhập vào Supabase | Vai trò |
    |---|---|---|
    | Admin | `thuytt@esquel.com` | admin (tự gán) |
-   | QA dùng chung | `qainline@qa-photo.local` | qa |
+   | QA dùng chung | `qainline@thv.com` | qa |
    - Khi đăng nhập app, QA chỉ cần gõ **QAinline** + mật khẩu (app tự đổi thành email trên).
    - Nếu tạo user **trước** khi chạy schema.sql: chạy lại phần *BACKFILL* cuối file.
 4. **Project Settings → API**: copy **Project URL** và **anon public key**.
@@ -40,7 +40,9 @@ Công nghệ: Next.js 14 · Supabase (gói Free) · Vercel.
 ## 5. Quy tắc nghiệp vụ (tóm tắt)
 - Nguồn: sheet **Prod** của recap. Style = `Cust. Style No`. Lot = `KR..` tách từ `JO No` (`…KR01::V::-` → KR01). Hàng `MEN…` = Men (gồm outlet), còn lại (Ladies, Boys) = Ladies.
 - Nhập lại recap: thêm/cập nhật JO × màu; JO bị bỏ khỏi recap chỉ bị đánh dấu, **không xóa ảnh**.
-- Mác sườn: 1 ảnh → cột ① và ② IE. Gập gói → cột ③. Thân trước dùng chung mọi lot cùng style × màu. Các ảnh khác chụp riêng từng lot × màu.
+- **Riêng từng lot × màu:** Mác sườn (cột ① ② IE; có nút *Dùng lại ảnh mác của lot khác* khi mác giống) và ảnh lỗi.
+- **Dùng chung mọi lot (style × màu):** Gập gói (cột ③ IE), Thẻ bài, Thân trước, Mặt thùng có tem (hàng Men, 1 ảnh).
+- **Tự lưu nháp:** ảnh lưu vào máy trước rồi tự tải lên khi có mạng (biểu tượng ● Đã lưu / Chờ tải / Lỗi); form ảnh lỗi tự lưu và khôi phục; xóa ảnh có *Hoàn tác* 10 giây.
 - Ảnh lỗi: bắt buộc tên lỗi + mức độ (chỉ mức được phép) + vị trí; nhắc khi > 10 ảnh.
 - QA sửa được khi bộ ảnh ở trạng thái Nháp / Bị trả lại. Đã gửi / đã duyệt → chỉ admin sửa.
 - Chụp/chọn album xong → màn hình **Cắt ảnh**: app tự đặt khung (mác/nhãn/thẻ: tìm vùng trắng; gập gói/áo/thùng: tách khỏi nền), QA kéo khung, **Xoay 90°**, **Tự cắt lại**, **Không cắt** hoặc **Dùng ảnh**. Chỉ lưu ảnh đã cắt.

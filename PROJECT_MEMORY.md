@@ -1,6 +1,6 @@
 # PROJECT MEMORY – QA Photo App (Báo cáo IE + Final report Hazzys)
 
-> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.4 – đang deploy (Supabase + GitHub QA-Photo xong; Vercel đang build lần đầu)**.
+> Nguồn sự thật của dự án. Cập nhật lần cuối: 12/11/2026. Trạng thái: **v1.7 – code xong, chờ upload GitHub (+ supabase/update_v1.5.sql nếu chưa chạy)**; app chạy tại https://qa-photo.vercel.app (QA: /qa).
 
 ## 1. Mục tiêu
 QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (chụp dần, lưu nháp, xóa/chụp lại khi chưa đạt). Admin duyệt và xuất:
@@ -19,7 +19,7 @@ QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (c
 | Ảnh | Đơn vị chụp | IE | Final – Men | Final – Ladies/Boys |
 |---|---|---|---|---|
 | Mác sườn (1 ảnh) | Lot × màu | cột ① **và** ② | ✓ | ✓ |
-| Gập gói | Lot × màu | cột ③ | ✓ | – |
+| Gập gói | Style × màu (dùng chung, v1.5) | cột ③ | ✓ | – |
 | Thẻ bài | Lot × màu | – | ✓ | ✓ |
 | Thân trước | Style × màu – **dùng chung mọi lot** | – | ✓ | ✓ |
 | Ảnh lỗi (gợi ý ≤10 ảnh, không chặn cứng) | Lot × màu | – | ✓ | ✓ |
@@ -58,7 +58,7 @@ QA ngoài chuyền chụp ảnh trên điện thoại trong lúc sản xuất (c
 - **Lưu trữ: 6 tháng** – v1.0: trang *Tải về & dọn ảnh* tô đỏ và chọn sẵn bộ ảnh quá 6 tháng; admin bấm Tải ZIP → Xóa khỏi cloud (chưa có xóa tự động phía server).
 - QA được xóa/chụp lại khi chưa duyệt. Sau duyệt chỉ Admin sửa.
 - **Admin duyệt và xuất** (hiện tại: Ana).
-- **Tài khoản (đã chốt):** `thuytt@esquel.com` – admin; `QAinline` – tài khoản QA dùng chung (vai trò QA). **Không** ghi tên người chụp (đã chốt) – app chỉ lưu tài khoản + thời gian chụp.
+- **Tài khoản (đã chốt):** `thuytt@esquel.com` – admin; `QAinline` (email Supabase: **qainline@thv.com**) – tài khoản QA dùng chung (vai trò QA); lib/supabase.ts đổi 'QAinline' → qainline@thv.com. **Không** ghi tên người chụp (đã chốt) – app chỉ lưu tài khoản + thời gian chụp.
 
 ## 5. Xuất báo cáo IE (Cách A)
 - Admin tick nhiều lot (cùng style, có thể khác GO) → **1 file Excel + 1 file PDF**.
@@ -131,6 +131,16 @@ PWA: Next.js + TypeScript + Tailwind, Supabase (Postgres + Storage ảnh), Verce
 
 ## 12. Lịch sử phiên bản
 - **v1.0 (12/11/2026):** bản đầu Giai đoạn 1.
+- **v1.7 (16/11/2026, chốt theo chị):** Men – **PRESENTATION và DEFECT PICTURE luôn ở khung bên phải** như mẫu HZSH6E201, kể cả đơn 10–12 màu: khung chia lưới 2–4 cột (1 ảnh / ≤4 / ≤9 / >9), cột I–L nới lên 14 (18 khi > 4 ảnh), tự nới chiều cao các dòng trống trong khung khi thiếu chỗ. CARTON PHOTO dưới chữ ký: 3 ô/hàng (A–F), > 3 ảnh thì 6 ô/hàng (A–L).
+- **v1.6 (16/11/2026):** Final report chèn ảnh dạng **ô ảnh đều nhau**: mỗi ô cùng kích thước, viền mảnh, nền trắng, dải chú thích xám dưới ảnh (màu / lot / Side label / Hangtag / tên lỗi (mức độ) – vị trí). Ladies: Style Photo 6 ô/hàng (ảnh cắt vừa khung 3:4), Defective Photo 4 ô/hàng, Accessory 6 ô/hàng (giữ trọn ảnh); mác giống nhau giữa các lot gộp 1 ô ghi các lot. Men: nới cột I–L lên 14, PRESENTATION dùng vùng I4 → trên Style Confirmation, DEFECT PICTURE tới trên QA Auditor, khối CARTON PHOTO (tiêu đề xám) 3 ô/hàng dưới chữ ký. Ô ảnh vẽ bằng canvas ở độ phân giải ×2.
+- **v1.5 (15/11/2026):**
+  - Ảnh **dùng chung theo style × màu** (set_id = null): gập gói, thẻ bài, thân trước, **mặt thùng có tem** (kind `carton`, Men, 1 ảnh/màu). **Riêng lot**: mác sườn + ảnh lỗi. Màn hình chụp chia 2 khối "Riêng lot" / "Dùng chung mọi lot".
+  - **Dùng lại ảnh mác** của lot khác cùng màu (chèn dòng ảnh trỏ cùng file, size_bytes 0; xóa file chỉ khi không còn dòng nào dùng). Mác khác thì chụp mới.
+  - **Tự lưu nháp**: hàng chờ IndexedDB (lib/queue.ts) – ảnh lưu máy trước, tự tải lên khi có mạng, thử lại mỗi 15s/khi online, cảnh báo khi rời trang; badge ● Đã lưu / Chờ tải n / Lỗi – Thử lại. Form ảnh lỗi tự lưu + khôi phục. Xóa ảnh có Hoàn tác 10 giây. Gửi duyệt + cảnh báo ảnh mờ dùng hộp thoại trong app (bỏ window.confirm – bị chặn trong trình duyệt Zalo, là nguyên nhân lỗi "không xóa được ảnh lỗi").
+  - Xóa ảnh báo lỗi rõ khi không có quyền (bộ ảnh đã gửi/duyệt).
+  - Vị trí lỗi luôn hiển thị/lưu tiếng Anh (code đổi tên cũ tiếng Việt), SQL update_v1.5.sql gồm cả phần v1.3.
+  - PDF IE: chữ căn giữa ô (line-height cố định).
+  - Final: Accessory = mác từng lot (bỏ trùng) + thẻ bài dùng chung; Men PRESENTATION = gập gói dùng chung, ảnh thùng = carton (fallback carton_face cũ).
 - **v1.4 (14/11/2026):** **Cảnh báo BPO date** trên trang Admin: JO × màu chưa duyệt ảnh khi còn ≤ 5 ngày tới BPOD; hạn gửi báo cáo buyer = BPOD − 2 ngày (nhãn: Quá hạn gửi buyer N ngày / Hôm nay phải gửi buyer / Còn N ngày). Có ô KPI, khối cảnh báo (8 dòng đầu, xem tất cả), cột BPOD tô màu, bộ lọc "Sắp đến BPOD". Tham số trong lib/config.ts (BPO_ALERT_DAYS=5, BPO_SEND_DAYS=2).
 - **v1.3 (14/11/2026):** khối **Defect Photo – Ảnh lỗi** nổi bật trong phần Final của màn hình chụp (xem 3 ảnh gần nhất + nút đỏ "+ Chụp / thêm ảnh lỗi"); vị trí lỗi đổi sang **tiếng Anh**; nhãn màn hình ảnh lỗi song ngữ; file `supabase/update_v1.3.sql` để đổi dữ liệu cũ.
 - **v1.2 (13/11/2026):** màn hình **Cắt ảnh** (tự đặt khung: mác/nhãn/thẻ = vùng trắng lớn nhất, gập gói/áo/thùng = tách nền theo màu viền; kéo 4 góc, Xoay 90°, Tự cắt lại, Không cắt, Dùng ảnh) cho mọi loại ảnh kể cả ảnh lỗi; IE tách nút **Xuất Excel** / **Xuất PDF**; trang **Admin → Final report**: upload 1 hoặc nhiều file GQS → đọc JO (B6) + màu (B8) → bảng kiểm thiếu ảnh / chưa duyệt → **Chèn ảnh & tải Excel** (file *_anh.xlsx). Ảnh chưa duyệt vẫn được chèn (có cảnh báo).

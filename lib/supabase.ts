@@ -9,7 +9,7 @@ export const supabase = createClient(url, key, {
 
 export const BUCKET = 'photos';
 
-/** "QAinline" -> qainline@qa-photo.local ; email giữ nguyên */
+/** "QAinline" -> qainline@thv.com ; email giữ nguyên */
 export function loginEmail(input: string) {
   const v = input.trim().toLowerCase();
   return v.includes('@') ? v : `${v}@thv.com`;

@@ -1,6 +1,6 @@
 export type Role = 'admin' | 'qa';
 export type SetStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'archived';
-export type PhotoKind = 'label' | 'fold' | 'hangtag' | 'front' | 'defect' | 'carton_face' | 'carton_label';
+export type PhotoKind = 'label' | 'fold' | 'hangtag' | 'front' | 'defect' | 'carton' | 'carton_face' | 'carton_label';
 export type Severity = 'Critical' | 'Major' | 'Minor';
 
 export interface JoColor {

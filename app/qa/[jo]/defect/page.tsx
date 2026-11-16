@@ -3,7 +3,9 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useRequire } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { deletePhotos, getOrCreateSet, signedUrls, uploadPhoto } from '@/lib/photos';
+import { deletePhotos, signedUrls } from '@/lib/photos';
+import { clearDraft, enqueue, loadDraft, saveDraft, useQueue, type UploadJob } from '@/lib/queue';
+import { QueueBadge, UndoBar, useUndoDelete } from '@/components/Feedback';
 import type { Compressed } from '@/lib/image';
 import { DEFECT_PHOTO_HINT } from '@/lib/config';
 import type { DefectPosition, DefectType, JoColor, Photo, PhotoSet, Severity } from '@/lib/types';
@@ -11,6 +13,13 @@ import { ErrorBox, Spinner, TopBar, btn } from '@/components/ui';
 import { Lightbox } from '@/components/Lightbox';
 import { AlbumIcon, CameraIcon } from '@/components/PhotoSlot';
 import { CropModal } from '@/components/CropModal';
+
+/** Vị trí lỗi luôn ghi tiếng Anh (khớp Part Name GQS) – đổi cả tên cũ tiếng Việt nếu DB chưa cập nhật. */
+const VI_EN: Record<string, string> = {
+  'Cổ': 'Collar', 'Nẹp áo': 'Placket', 'Măng séc': 'Cuff', 'Sườn': 'Side seam', 'Gấu': 'Hem', 'Túi': 'Pocket',
+  'Vai': 'Shoulder', 'Tay': 'Sleeve', 'Thân sau': 'Back body', 'Đô': 'Yoke', 'Thân trước': 'Front body', 'Nách': 'Armhole',
+};
+const toEN = (s: string) => VI_EN[s.trim()] || s.trim();
 
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
@@ -52,6 +61,27 @@ function DefectInner() {
   const [otherPos, setOtherPos] = useState('');
   const [note, setNote] = useState('');
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [restored, setRestored] = useState(false);
+  const draftKey = `defect:${jo}|${color}`;
+
+  const onDone = useCallback(
+    (j: UploadJob) => {
+      if (j.jo === jo && j.color === color) void load();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [jo, color],
+  );
+  const { jobs, retry } = useQueue(onDone);
+  const undo = useUndoDelete<Photo>(
+    async (items) => {
+      await deletePhotos(items);
+      await load();
+    },
+    (m) => {
+      setErr(m);
+      void load();
+    },
+  );
 
   const load = useCallback(async () => {
     const { data: r } = await supabase.from('jo_colors').select('*').eq('jo_no', jo).eq('color_code', color).maybeSingle();
@@ -78,6 +108,40 @@ function DefectInner() {
     if (auth.ready) load();
   }, [auth.ready, load]);
 
+  // Khôi phục form ảnh lỗi đang điền dở (mất mạng / bấm nhầm Quay lại)
+  const [draftReady, setDraftReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    loadDraft(draftKey)
+      .then((d) => {
+        if (!alive || !d) return;
+        const v = d.data as { dName?: string; sev?: Severity | ''; pos?: string; otherPos?: string; note?: string };
+        setDName(v.dName || '');
+        setSev(v.sev || '');
+        setPos(v.pos || '');
+        setOtherPos(v.otherPos || '');
+        setNote(v.note || '');
+        if (d.blob) {
+          setImg({ blob: d.blob, width: d.width || 1200, height: d.height || 1200, blur: 999, brightness: 128 });
+          setPreview(URL.createObjectURL(d.blob));
+        }
+        if (d.blob || v.dName) setRestored(true);
+      })
+      .catch(() => undefined)
+      .finally(() => alive && setDraftReady(true));
+    return () => {
+      alive = false;
+    };
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftReady) return;
+    const t = setTimeout(() => {
+      if (!img && !dName && !pos && !note) void clearDraft(draftKey);
+      else void saveDraft({ key: draftKey, data: { dName, sev, pos, otherPos, note }, blob: img?.blob, width: img?.width, height: img?.height });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [draftReady, draftKey, img, dName, sev, pos, otherPos, note]);
+
   if (!auth.ready || !loaded) return <Spinner />;
   if (!row) return <div className="p-4"><ErrorBox text="Không tìm thấy JO / màu này." /></div>;
 
@@ -88,7 +152,7 @@ function DefectInner() {
     ? ([type.allow_critical && 'Critical', type.allow_major && 'Major', type.allow_minor && 'Minor'].filter(Boolean) as Severity[])
     : [];
   const curSev = levels.includes(sev as Severity) ? (sev as Severity) : levels.length === 1 ? levels[0] : '';
-  const position = pos === '__other' ? otherPos.trim() : pos;
+  const position = toEN(pos === '__other' ? otherPos : pos);
   const canSave = !!img && !!dName && !!curSev && !!position && !busy;
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,56 +173,70 @@ function DefectInner() {
     setBusy(true);
     setErr('');
     try {
-      const s = await getOrCreateSet(jo, color);
-      await uploadPhoto({
-        img,
+      await enqueue({
         kind: 'defect',
         style: row.cust_style,
         color,
         jo,
-        setId: s.id,
-        defect: { name: dName, severity: curSev, position, note },
+        blob: img.blob,
+        width: img.width,
+        height: img.height,
+        defect: { name: dName, severity: curSev, position, note: note.trim() },
       });
+      await clearDraft(draftKey);
+      setRestored(false);
       setImg(null);
       setPreview('');
       setNote('');
-      if (next) {
-        await load();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else router.push(`/qa/${encodeURIComponent(jo)}`);
+      if (next) window.scrollTo({ top: 0, behavior: 'smooth' });
+      else router.push(`/qa/${encodeURIComponent(jo)}`);
     } catch (e) {
-      setErr((e as Error).message);
+      setErr('Không lưu được ảnh vào máy: ' + (e as Error).message);
     } finally {
       setBusy(false);
     }
   };
 
-  const remove = async (p: Photo) => {
-    if (!window.confirm('Xóa ảnh lỗi này?')) return;
-    try {
-      await deletePhotos([p]);
-      await load();
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  };
+  const shown = list.filter((p) => !undo.isHidden(p.id));
+  const myJobs = jobs.filter((j) => j.kind === 'defect' && j.jo === jo && j.color === color);
 
-  const caption = (p: Photo) => `${p.defect_name} (${p.severity}) – ${p.position}${p.note ? ` · ${p.note}` : ''}`;
+  const caption = (p: Photo) => `${p.defect_name} (${p.severity}) – ${toEN(p.position || '')}${p.note ? ` · ${p.note}` : ''}`;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[640px] flex-col">
-      <TopBar title={`Ảnh lỗi · ${color}`} sub={`${row.cust_style} · ${jo} · ${list.length} ảnh (gợi ý tối đa ${DEFECT_PHOTO_HINT})`} back={`/qa/${encodeURIComponent(jo)}`} />
+      <TopBar
+        title={`Ảnh lỗi · ${color}`}
+        sub={`${row.cust_style} · ${jo} · ${shown.length} ảnh (gợi ý tối đa ${DEFECT_PHOTO_HINT})`}
+        back={`/qa/${encodeURIComponent(jo)}`}
+        right={<QueueBadge jobs={jobs} onRetry={retry} />}
+      />
       <div className="flex flex-1 flex-col gap-4 p-4 pb-32">
         {err && <ErrorBox text={err} />}
-        {list.length >= DEFECT_PHOTO_HINT && (
+        {restored && (
+          <div className="rounded-xl border border-brand/30 bg-brand-soft p-3 text-xs text-brand-dark">
+            Đã khôi phục ảnh lỗi đang làm dở lần trước. Kiểm tra rồi bấm <b>Lưu</b>.
+          </div>
+        )}
+        {shown.length >= DEFECT_PHOTO_HINT && (
           <div className="rounded-xl border border-[#F3D9A4] bg-[#FFF7E8] p-3 text-xs text-[#6B4A0B]">
-            Đã có {list.length} ảnh lỗi cho màu này. Chỉ chụp thêm khi là lỗi mới.
+            Đã có {shown.length} ảnh lỗi cho màu này. Chỉ chụp thêm khi là lỗi mới.
           </div>
         )}
 
-        {list.length > 0 && (
+        {(shown.length > 0 || myJobs.length > 0) && (
           <div className="grid grid-cols-3 gap-2">
-            {list.map((p) => (
+            {myJobs.map((j) => (
+              <div key={j.id} className="flex flex-col overflow-hidden rounded-lg border border-[#F3D9A4] bg-white">
+                <JobThumb job={j} />
+                <div className="p-1.5 text-[10px] leading-tight">
+                  {j.defect?.name} ({j.defect?.severity}) – {j.defect?.position}
+                </div>
+                <div className={`border-t border-line p-1.5 text-center text-[10px] ${j.status === 'error' ? 'text-bad' : 'text-warn'}`}>
+                  {j.status === 'error' ? '⚠ lỗi – tự thử lại' : '⏳ chờ tải lên'}
+                </div>
+              </div>
+            ))}
+            {shown.map((p) => (
               <div key={p.id} className="flex flex-col overflow-hidden rounded-lg border border-line bg-white">
                 <button onClick={() => setView({ src: urls[p.path], cap: caption(p) })} className="h-20 bg-[#EEF0F3]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -166,7 +244,7 @@ function DefectInner() {
                 </button>
                 <div className="p-1.5 text-[10px] leading-tight">{caption(p)}</div>
                 {editable && (
-                  <button onClick={() => remove(p)} className="h-8 border-t border-line text-[11px] text-bad">
+                  <button onClick={() => undo.remove(p)} className="h-10 border-t border-line text-[12px] font-semibold text-bad">
                     Xóa
                   </button>
                 )}
@@ -248,8 +326,8 @@ function DefectInner() {
               </h2>
               <div className="flex flex-wrap gap-2">
                 {positions.map((p) => (
-                  <Chip key={p.id} on={pos === p.name} onClick={() => setPos(p.name)}>
-                    {p.name}
+                  <Chip key={p.id} on={pos === toEN(p.name)} onClick={() => setPos(toEN(p.name))}>
+                    {toEN(p.name)}
                   </Chip>
                 ))}
                 <Chip on={pos === '__other'} onClick={() => setPos('__other')}>
@@ -293,10 +371,22 @@ function DefectInner() {
           </div>
         </div>
       )}
+      <UndoBar count={undo.pending.length} onUndo={undo.undo} />
       <Lightbox src={view?.src || null} caption={view?.cap} onClose={() => setView(null)} />
       {cropFile && <CropModal file={cropFile} kind="defect" onCancel={() => setCropFile(null)} onDone={applyCropped} />}
     </main>
   );
+}
+
+function JobThumb({ job }: { job: UploadJob }) {
+  const [u, setU] = useState('');
+  useEffect(() => {
+    const x = URL.createObjectURL(job.blob);
+    setU(x);
+    return () => URL.revokeObjectURL(x);
+  }, [job.blob]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return <div className="h-20 bg-[#EEF0F3]">{u && <img src={u} alt="Ảnh lỗi chờ tải" className="h-full w-full object-cover opacity-80" />}</div>;
 }
 
 export default function DefectPage() {

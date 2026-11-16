@@ -68,7 +68,7 @@ export default function CleanupPage() {
 
   const selected = useMemo(() => (items || []).filter((i) => checked.has(i.set.id)), [items, checked]);
 
-  /** Ảnh thân trước chỉ xóa khi mọi bộ ảnh cùng style × màu đều được dọn. */
+  /** Ảnh dùng chung (thân trước, gập gói, thẻ bài, thùng) chỉ xóa khi mọi bộ ảnh cùng style × màu đều được dọn. */
   const frontsToRemove = useMemo(() => {
     const sel = new Set(selected.map((i) => i.set.id));
     return fronts.filter((f) => {
@@ -100,19 +100,20 @@ export default function CleanupPage() {
       }
       for (const f of frontsToRemove) {
         setMsg(`Đang nén ảnh ${++n}/${all}…`);
-        zip.file(`${safe(f.cust_style)}/_than_truoc/${safe(f.color_code)}_${f.id}.jpg`, await downloadPhoto(f.path));
+        zip.file(`${safe(f.cust_style)}/_dung_chung/${safe(f.color_code)}/${f.kind}_${f.id}.jpg`, await downloadPhoto(f.path));
       }
       // Kèm file Excel IE cho các bộ ảnh đã duyệt, đủ ảnh
       const byStyle = new Map<string, IEItem[]>();
       selected.forEach((i) => {
-        const ok = i.set.status === 'approved' && i.photos.some((p) => p.kind === 'label') && i.photos.some((p) => p.kind === 'fold');
+        const hasFold = i.photos.some((p) => p.kind === 'fold') || fronts.some((f) => f.kind === 'fold' && f.cust_style === i.row?.cust_style && f.color_code === i.set.color_code);
+        const ok = i.set.status === 'approved' && i.photos.some((p) => p.kind === 'label') && hasFold;
         if (!ok || !i.row) return;
         if (!byStyle.has(i.row.cust_style)) byStyle.set(i.row.cust_style, []);
         byStyle.get(i.row.cust_style)!.push({ jo: i.set.jo_no, lot: i.row.lot, color: i.set.color_code, setId: i.set.id });
       });
       for (const [style, its] of byStyle) {
         setMsg(`Đang tạo Excel IE ${style}…`);
-        const sheets = await loadIEData(its);
+        const sheets = await loadIEData(its, style);
         zip.file(`${safe(style)}/${ieFileBase(style, sheets)}.xlsx`, await buildIEWorkbook(style, sheets));
       }
       setMsg('Đang đóng gói ZIP…');

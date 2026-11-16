@@ -1,6 +1,6 @@
 import { BUCKET, supabase } from './supabase';
 import type { Photo, PhotoKind, PhotoSet, Severity } from './types';
-import { SINGLE_KINDS } from './config';
+import { SINGLE_KINDS, isShared } from './config';
 import type { Compressed } from './image';
 
 export async function getOrCreateSet(jo: string, color: string): Promise<PhotoSet> {
@@ -25,7 +25,7 @@ function safe(s: string) {
 }
 
 export async function uploadPhoto(opts: {
-  img: Compressed;
+  img: Pick<Compressed, 'blob' | 'width' | 'height'>;
   kind: PhotoKind;
   style: string;
   color: string;
@@ -34,7 +34,8 @@ export async function uploadPhoto(opts: {
   defect?: { name: string; severity: Severity; position: string; note: string };
 }): Promise<Photo> {
   const { img, kind, style, color, jo, setId, defect } = opts;
-  const folder = kind === 'front' ? `${safe(style)}/_front/${safe(color)}` : `${safe(style)}/${safe(jo)}/${safe(color)}`;
+  const shared = isShared(kind);
+  const folder = shared ? `${safe(style)}/_shared/${safe(color)}` : `${safe(style)}/${safe(jo)}/${safe(color)}`;
   const path = `${folder}/${kind}_${Date.now()}.jpg`;
   const up = await supabase.storage.from(BUCKET).upload(path, img.blob, { contentType: 'image/jpeg', upsert: false });
   if (up.error) throw new Error('Tải ảnh lên thất bại: ' + up.error.message);
@@ -42,7 +43,7 @@ export async function uploadPhoto(opts: {
   const { data, error } = await supabase
     .from('photos')
     .insert({
-      set_id: kind === 'front' ? null : setId,
+      set_id: shared ? null : setId,
       cust_style: style,
       color_code: color,
       kind,
@@ -66,7 +67,7 @@ export async function uploadPhoto(opts: {
   // Loại ảnh chỉ có 1 ảnh: xóa ảnh cũ sau khi ảnh mới đã lưu
   if (SINGLE_KINDS.includes(kind)) {
     let q = supabase.from('photos').select('*').eq('kind', kind).eq('color_code', color).neq('id', photo.id);
-    q = kind === 'front' ? q.is('set_id', null).eq('cust_style', style) : q.eq('set_id', setId!);
+    q = shared ? q.is('set_id', null).eq('cust_style', style) : q.eq('set_id', setId!);
     const { data: old } = await q;
     if (old && old.length) await deletePhotos(old as Photo[]);
   }
@@ -74,13 +75,45 @@ export async function uploadPhoto(opts: {
   return photo;
 }
 
+/** Xóa ảnh. File trên Storage chỉ bị xóa khi không còn dòng ảnh nào dùng chung đường dẫn đó (ảnh mác dùng lại). */
 export async function deletePhotos(photos: Photo[]) {
   if (!photos.length) return;
-  const { error } = await supabase.from('photos').delete().in('id', photos.map((p) => p.id));
+  const { data, error } = await supabase
+    .from('photos')
+    .delete()
+    .in('id', photos.map((p) => p.id))
+    .select('id');
   if (error) throw new Error('Xóa ảnh thất bại: ' + error.message);
-  for (let i = 0; i < photos.length; i += 100) {
-    await supabase.storage.from(BUCKET).remove(photos.slice(i, i + 100).map((p) => p.path));
+  if (!data || data.length < photos.length) throw new Error('Không xóa được ảnh – bộ ảnh đã gửi duyệt hoặc đã duyệt, chỉ admin mới sửa được.');
+  const paths = Array.from(new Set(photos.map((p) => p.path)));
+  const { data: still } = await supabase.from('photos').select('path').in('path', paths);
+  const keep = new Set((still || []).map((x: { path: string }) => x.path));
+  const remove = paths.filter((x) => !keep.has(x));
+  for (let i = 0; i < remove.length; i += 100) {
+    await supabase.storage.from(BUCKET).remove(remove.slice(i, i + 100));
   }
+}
+
+/** Dùng lại ảnh mác của lot khác cho bộ ảnh này (không tải thêm file, không tính thêm dung lượng). */
+export async function reusePhoto(from: Photo, setId: number) {
+  const { data, error } = await supabase
+    .from('photos')
+    .insert({
+      set_id: setId,
+      cust_style: from.cust_style,
+      color_code: from.color_code,
+      kind: from.kind,
+      path: from.path,
+      size_bytes: 0,
+      width: from.width,
+      height: from.height,
+    })
+    .select('*')
+    .single();
+  if (error) throw new Error('Không dùng lại được ảnh: ' + error.message);
+  const { data: old } = await supabase.from('photos').select('*').eq('set_id', setId).eq('kind', from.kind).neq('id', (data as Photo).id);
+  if (old && old.length) await deletePhotos(old as Photo[]);
+  await touchSet(setId);
 }
 
 async function touchSet(setId: number | null) {

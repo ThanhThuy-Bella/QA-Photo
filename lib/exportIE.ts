@@ -36,7 +36,7 @@ const HEAD = [
 ];
 
 /** Tải ảnh mác + gập gói của các bộ ảnh đã chọn, gom theo JO thành từng sheet. */
-export async function loadIEData(items: IEItem[], onProgress?: (msg: string) => void): Promise<IESheet[]> {
+export async function loadIEData(items: IEItem[], style: string, onProgress?: (msg: string) => void): Promise<IESheet[]> {
   const setIds = items.map((i) => i.setId);
   const { data, error } = await supabase
     .from('photos')
@@ -46,7 +46,18 @@ export async function loadIEData(items: IEItem[], onProgress?: (msg: string) => 
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   const photos = (data || []) as Photo[];
+  // Gập gói dùng chung theo style × màu (bản mới); bản cũ còn lưu theo bộ ảnh.
+  const { data: sh } = await supabase
+    .from('photos')
+    .select('*')
+    .is('set_id', null)
+    .eq('kind', 'fold')
+    .eq('cust_style', style)
+    .in('color_code', Array.from(new Set(items.map((i) => i.color))))
+    .order('created_at', { ascending: false });
+  const sharedFold = (sh || []) as Photo[];
   const pick = (setId: number, kind: string) => photos.find((p) => p.set_id === setId && p.kind === kind);
+  const pickFold = (it: IEItem) => sharedFold.find((p) => p.color_code === it.color) || pick(it.setId, 'fold');
 
   const byJo = new Map<string, { lot: string; items: IEItem[] }>();
   items.forEach((it) => {
@@ -65,7 +76,7 @@ export async function loadIEData(items: IEItem[], onProgress?: (msg: string) => 
     const colors: IEColor[] = [];
     for (const it of g.items.sort((a, b) => a.color.localeCompare(b.color))) {
       const lp = pick(it.setId, 'label');
-      const fp = pick(it.setId, 'fold');
+      const fp = pickFold(it);
       if (!lp || !fp) throw new Error(`JO ${jo} màu ${it.color} thiếu ảnh mác hoặc gập gói.`);
       onProgress?.(`Đang tải ảnh ${++done}/${items.length}…`);
       const [label, fold] = await Promise.all([blobToDataUrl(await downloadPhoto(lp.path)), blobToDataUrl(await downloadPhoto(fp.path))]);
@@ -176,19 +187,19 @@ function esc(s: string) {
 }
 
 function pageHtml(style: string, sh: IESheet) {
+  // Mọi ô chữ dùng line-height cố định = chiều cao ô để html2canvas vẽ chữ đúng giữa ô.
   const cell = 'border-right:1px solid #000;display:flex;align-items:center;justify-content:center;padding:8px;box-sizing:border-box;';
-  const head = (t: string) => {
+  const head = (t: string, last = false) => {
     const [a, b] = t.split('\n');
-    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:700;line-height:1.3;text-align:center">${esc(a)}<span>${esc(b)}</span></div>`;
+    return `<div style="${last ? '' : 'border-right:1px solid #000;'}height:44px;box-sizing:border-box;padding-top:7px;text-align:center;font-size:10px;font-weight:700">
+      <div style="height:15px;line-height:15px">${esc(a.trim())}</div><div style="height:15px;line-height:15px">${esc(b.trim())}</div></div>`;
   };
   const rows = sh.colors
     .map(
       (c, i) => `
     <div style="${i ? 'border-top:2px solid #000;' : ''}">
-      <div style="display:grid;grid-template-columns:254px 255px 1fr;background:#FFFF00;border-bottom:1px solid #000;height:40px">
-        <div style="border-right:1px solid #000;display:flex;align-items:center;justify-content:center">${head(HEAD[0])}</div>
-        <div style="border-right:1px solid #000;display:flex;align-items:center;justify-content:center">${head(HEAD[1])}</div>
-        <div style="display:flex;align-items:center;justify-content:center">${head(HEAD[2])}</div>
+      <div style="display:grid;grid-template-columns:254px 255px 1fr;background:#FFFF00;border-bottom:1px solid #000;height:44px">
+        ${head(HEAD[0])}${head(HEAD[1])}${head(HEAD[2], true)}
       </div>
       <div style="display:grid;grid-template-columns:254px 255px 1fr;height:232px">
         <div style="${cell}"><img src="${c.label}" style="max-width:236px;max-height:214px;object-fit:contain"></div>
@@ -198,14 +209,14 @@ function pageHtml(style: string, sh: IESheet) {
     </div>`,
     )
     .join('');
+  const box = (t: string, last = false) =>
+    `<div style="${last ? '' : 'border-right:1px solid #000;'}height:30px;line-height:30px;text-align:center;white-space:nowrap;overflow:hidden">${esc(t)}</div>`;
   return `
   <div style="width:794px;min-height:1123px;box-sizing:border-box;background:#fff;padding:56px 26px 40px;font-family:'Noto Sans KR','Malgun Gothic',sans-serif;color:#000">
-    <div style="text-align:center;font-size:19px">■ 수입상품 원산지표시 사진 <span style="font-family:'Nanum Gothic Coding',monospace;font-size:15px">(SAMPLE)</span> ■</div>
-    <div style="text-align:center;font-family:'Nanum Gothic Coding',monospace;font-size:15px;margin-bottom:22px">required images of C/O marking on imported goods</div>
+    <div style="text-align:center;font-size:19px;height:30px;line-height:30px">■ 수입상품 원산지표시 사진 <span style="font-family:'Nanum Gothic Coding',monospace;font-size:15px">(SAMPLE)</span> ■</div>
+    <div style="text-align:center;font-family:'Nanum Gothic Coding',monospace;font-size:15px;height:24px;line-height:24px;margin-bottom:22px">required images of C/O marking on imported goods</div>
     <div style="display:grid;grid-template-columns:254px 255px 1fr;border:2px solid #000;font-family:'Nanum Gothic Coding',monospace;font-size:15px;margin-bottom:22px">
-      <div style="text-align:center;padding:3px 0;border-right:1px solid #000">STYLE NO.</div>
-      <div style="text-align:center;padding:3px 0;border-right:1px solid #000">${esc(style)}</div>
-      <div style="text-align:center;padding:3px 0">${esc(sh.lot)}</div>
+      ${box('STYLE NO.')}${box(style)}${box(sh.lot, true)}
     </div>
     <div style="border:2px solid #000">${rows}</div>
   </div>`;
@@ -256,7 +267,7 @@ export function ieFileBase(style: string, sheets: IESheet[]) {
 
 /** Xuất IE cho 1 style: Excel hoặc PDF. */
 export async function exportIE(style: string, items: IEItem[], mode: 'xlsx' | 'pdf', onProgress?: (msg: string) => void) {
-  const sheets = await loadIEData(items, onProgress);
+  const sheets = await loadIEData(items, style, onProgress);
   const base = ieFileBase(style, sheets);
   if (mode === 'xlsx') {
     onProgress?.('Đang tạo file Excel…');

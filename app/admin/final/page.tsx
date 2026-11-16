@@ -29,7 +29,7 @@ interface Job {
   err?: string;
 }
 
-const has = (p: Pair, k: string) => p.photos.some((x) => x.kind === k);
+const has = (p: Pair, k: string, shared: Photo[] = []) => p.photos.some((x) => x.kind === k) || shared.some((x) => x.kind === k && x.color_code === p.row.color_code);
 
 async function loadJob(file: File): Promise<Job> {
   const buf = await file.arrayBuffer();
@@ -51,7 +51,7 @@ async function loadJob(file: File): Promise<Job> {
   const style = rows[0]?.cust_style;
   let fronts: Photo[] = [];
   if (style) {
-    const { data } = await supabase.from('photos').select('*').is('set_id', null).eq('kind', 'front').eq('cust_style', style).order('created_at');
+    const { data } = await supabase.from('photos').select('*').is('set_id', null).eq('cust_style', style).order('created_at');
     fronts = (data || []) as Photo[];
   }
   const colorOrder = (c: string) => {
@@ -76,34 +76,41 @@ async function loadJob(file: File): Promise<Job> {
   };
 }
 
-async function toImg(p: Photo): Promise<Img> {
-  return { dataUrl: await blobToDataUrl(await downloadPhoto(p.path)), w: p.width || 1200, h: p.height || 1600 };
+async function toImg(p: Photo, caption?: string): Promise<Img> {
+  return { dataUrl: await blobToDataUrl(await downloadPhoto(p.path)), w: p.width || 1200, h: p.height || 1600, caption };
 }
 
 async function buildPhotos(job: Job): Promise<FinalPhotos> {
   const colors = Array.from(new Set(job.pairs.map((p) => p.row.color_code)));
   const last = (ps: Photo[], k: string) => ps.filter((x) => x.kind === k).slice(-1)[0];
+  const sharedOf = (c: string, k: string) => last(job.fronts.filter((x) => x.color_code === c), k);
   const out: FinalPhotos = { front: [], defects: [], accessory: [], packing: [], carton: [] };
   for (const c of colors) {
-    const f = job.fronts.filter((x) => x.color_code === c).slice(-1)[0];
-    if (f) out.front.push(await toImg(f));
     const ofColor = job.pairs.filter((p) => p.row.color_code === c);
+    const f = sharedOf(c, 'front');
+    if (f) out.front.push(await toImg(f, c));
     if (job.category === 'Men') {
-      const fold = ofColor.map((p) => last(p.photos, 'fold')).find(Boolean);
-      if (fold) out.packing.push(await toImg(fold));
+      const fold = sharedOf(c, 'fold') || ofColor.map((p) => last(p.photos, 'fold')).find(Boolean);
+      if (fold) out.packing.push(await toImg(fold, c));
     }
+    // Accessory: mác sườn từng lot (gộp lot dùng chung ảnh) + thẻ bài dùng chung
+    const byPath = new Map<string, { photo: Photo; lots: string[] }>();
     for (const p of ofColor) {
-      for (const k of ['label', 'hangtag']) {
-        const x = last(p.photos, k);
-        if (x) out.accessory.push(await toImg(x));
-      }
-      for (const d of p.photos.filter((x) => x.kind === 'defect')) out.defects.push(await toImg(d));
-      if (job.category === 'Men') {
-        for (const k of ['carton_face', 'carton_label']) {
-          const x = last(p.photos, k);
-          if (x) out.carton.push(await toImg(x));
-        }
-      }
+      const lb = last(p.photos, 'label');
+      if (!lb) continue;
+      const e = byPath.get(lb.path);
+      if (e) e.lots.push(p.row.lot);
+      else byPath.set(lb.path, { photo: lb, lots: [p.row.lot] });
+    }
+    for (const e of byPath.values()) out.accessory.push(await toImg(e.photo, `${c} · Side label · ${e.lots.join(', ')}`));
+    const tag = sharedOf(c, 'hangtag') || ofColor.map((p) => last(p.photos, 'hangtag')).find(Boolean);
+    if (tag) out.accessory.push(await toImg(tag, `${c} · Hangtag`));
+    for (const p of ofColor)
+      for (const d of p.photos.filter((x) => x.kind === 'defect'))
+        out.defects.push(await toImg(d, `${d.defect_name} (${d.severity}) – ${d.position} · ${p.row.lot} ${c}`));
+    if (job.category === 'Men') {
+      const box = sharedOf(c, 'carton') || ofColor.map((p) => last(p.photos, 'carton_face')).find(Boolean);
+      if (box) out.carton.push(await toImg(box, c));
     }
   }
   return out;
@@ -172,7 +179,7 @@ export default function FinalPage() {
 
         {jobs.map((job, i) => {
           const notApproved = job.pairs.filter((p) => p.set?.status !== 'approved');
-          const frontColors = new Set(job.fronts.map((f) => f.color_code));
+          const frontColors = new Set(job.fronts.filter((f) => f.kind === 'front').map((f) => f.color_code));
           return (
             <section key={`${job.file.name}-${i}`} className="flex flex-col gap-3 rounded-xl border border-line bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -216,10 +223,10 @@ export default function FinalPage() {
                           <td className="px-2 py-1.5">{p.set ? <StatusChip status={p.set.status} /> : STATUS_INFO.draft.label}</td>
                           <td className="px-2 py-1.5">{mark(frontColors.has(p.row.color_code))}</td>
                           <td className="px-2 py-1.5">{mark(has(p, 'label'))}</td>
-                          <td className="px-2 py-1.5">{mark(has(p, 'hangtag'))}</td>
+                          <td className="px-2 py-1.5">{mark(has(p, 'hangtag', job.fronts))}</td>
                           <td className="px-2 py-1.5">{p.photos.filter((x) => x.kind === 'defect').length}</td>
-                          {job.category === 'Men' && <td className="px-2 py-1.5">{mark(has(p, 'fold'))}</td>}
-                          {job.category === 'Men' && <td className="px-2 py-1.5">{mark(has(p, 'carton_face') && has(p, 'carton_label'))}</td>}
+                          {job.category === 'Men' && <td className="px-2 py-1.5">{mark(has(p, 'fold', job.fronts))}</td>}
+                          {job.category === 'Men' && <td className="px-2 py-1.5">{mark(has(p, 'carton', job.fronts) || has(p, 'carton_face'))}</td>}
                         </tr>
                       );
                     })}

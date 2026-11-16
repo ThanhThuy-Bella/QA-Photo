@@ -68,10 +68,10 @@ $$;
 -- ============ ẢNH ============
 create table if not exists public.photos (
   id bigserial primary key,
-  set_id bigint references public.photo_sets on delete cascade,  -- NULL = ảnh thân trước dùng chung style × màu
+  set_id bigint references public.photo_sets on delete cascade,  -- NULL = ảnh dùng chung style × màu (thân trước, gập gói, thẻ bài, thùng)
   cust_style text not null,
   color_code text not null,
-  kind text not null check (kind in ('label', 'fold', 'hangtag', 'front', 'defect', 'carton_face', 'carton_label')),
+  kind text not null check (kind in ('label', 'fold', 'hangtag', 'front', 'defect', 'carton', 'carton_face', 'carton_label')),
   path text not null,
   size_bytes integer not null default 0,
   width integer,
@@ -85,6 +85,7 @@ create table if not exists public.photos (
 );
 create index if not exists photos_set_idx on public.photos (set_id);
 create index if not exists photos_front_idx on public.photos (cust_style, color_code) where set_id is null;
+create index if not exists photos_path_idx on public.photos (path);
 
 -- ============ BẢNG LỖI ============
 create table if not exists public.defect_types (

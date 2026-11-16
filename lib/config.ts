@@ -23,16 +23,21 @@ export const KIND_INFO: Record<PhotoKind, { name: string; hint: string }> = {
   },
   fold: {
     name: 'Gập gói',
-    hint: 'Áo đã gập trong túi PE, thấy rõ thẻ bài. Dùng cho cột ③ báo cáo IE.',
+    hint: 'Áo đã gập trong túi PE, thấy rõ thẻ bài. Cột ③ IE. Dùng chung mọi lot cùng màu.',
   },
-  hangtag: { name: 'Thẻ bài', hint: 'Chụp thẳng mặt thẻ, đọc rõ mã vạch.' },
+  hangtag: { name: 'Thẻ bài', hint: 'Chụp thẳng mặt thẻ, đọc rõ mã vạch. Dùng chung mọi lot cùng màu.' },
   front: { name: 'Thân trước', hint: 'Trải phẳng, thấy toàn bộ thân trước. Dùng chung cho mọi lot cùng màu.' },
   defect: { name: 'Ảnh lỗi', hint: 'Chụp gần, lỗi ở giữa khung.' },
+  carton: { name: 'Mặt thùng (có tem)', hint: 'Chụp 1 ảnh mặt thùng thấy rõ tem thùng. Dùng chung mọi lot cùng màu (hàng Men).' },
   carton_face: { name: 'Mặt thùng', hint: 'Chụp cả mặt thùng có ký mã hiệu.' },
   carton_label: { name: 'Nhãn thùng', hint: 'Chụp thẳng, đọc rõ chữ trên nhãn thùng.' },
 };
 
-export const SINGLE_KINDS: PhotoKind[] = ['label', 'fold', 'hangtag', 'front', 'carton_face', 'carton_label'];
+export const SINGLE_KINDS: PhotoKind[] = ['label', 'fold', 'hangtag', 'front', 'carton', 'carton_face', 'carton_label'];
+/** Ảnh dùng chung cho mọi lot cùng style × màu (lưu với set_id = null). */
+export const SHARED_KINDS: PhotoKind[] = ['front', 'fold', 'hangtag', 'carton'];
+export const isShared = (k: PhotoKind) => SHARED_KINDS.includes(k);
+export const UNDO_SECONDS = 10;
 
 export const BPO_ALERT_DAYS = 5; // bắt đầu cảnh báo khi còn ≤ 5 ngày tới BPO date
 export const BPO_SEND_DAYS = 2; // QA phải gửi báo cáo cho buyer trước BPO date 2 ngày

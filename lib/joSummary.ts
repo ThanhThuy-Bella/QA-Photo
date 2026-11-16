@@ -34,8 +34,11 @@ export function aggregateStatus(list: SetStatus[]): SetStatus {
 export function summarize(
   rows: JoColor[],
   sets: PhotoSet[],
-  iePhotos: { set_id: number | null; kind: string }[],
+  iePhotos: { set_id: number | null; kind: string; cust_style?: string; color_code?: string }[],
 ): JoSummary[] {
+  const sharedFold = new Set(
+    iePhotos.filter((p) => p.set_id === null && p.kind === 'fold').map((p) => `${p.cust_style}|${p.color_code}`),
+  );
   const setMap = new Map(sets.map((s) => [`${s.jo_no}|${s.color_code}`, s]));
   const ieCount = new Map<number, Set<string>>();
   iePhotos.forEach((p) => {
@@ -65,7 +68,8 @@ export function summarize(
     }
     const j = byJo.get(r.jo_no)!;
     j.inRecap = j.inRecap || r.in_recap;
-    const done = set ? ieCount.get(set.id)?.size || 0 : 0;
+    const own = set ? ieCount.get(set.id) : undefined;
+    const done = Number(!!own?.has('label')) + Number(!!own?.has('fold') || sharedFold.has(`${r.cust_style}|${r.color_code}`));
     j.colors.push({ color: r.color_code, set, status: set?.status || 'draft', ieDone: done });
   });
   const out = Array.from(byJo.values());
