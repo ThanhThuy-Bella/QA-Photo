@@ -5,7 +5,9 @@ import { useRequire } from '@/lib/auth';
 import { fetchAll } from '@/lib/photos';
 import { summarize, type JoSummary } from '@/lib/joSummary';
 import type { JoColor, PhotoSet } from '@/lib/types';
-import { AccountMenu, ErrorBox, Spinner, StatusChip, fmtDate } from '@/components/ui';
+import { AccountMenu, ErrorBox, Spinner, StatusChip, Version, fmtDate } from '@/components/ui';
+import { daysUntil } from '@/lib/bpo';
+import { BPO_ALERT_DAYS, BPO_SEND_DAYS } from '@/lib/config';
 
 type Tab = 'doing' | 'rejected' | 'approved';
 
@@ -45,7 +47,19 @@ export default function QaList() {
 
   const shown = useMemo(() => {
     const s = q.trim().toUpperCase();
-    return (list || []).filter((j) => {
+    // Ưu tiên: sắp tới hạn gửi buyer → đang làm dở → ngày may
+    const rank = (j: JoSummary) => {
+      const d = daysUntil(j.bpo);
+      const urgent = d !== null && d <= BPO_ALERT_DAYS && j.status !== 'approved' ? 0 : 1;
+      const started = j.ieDone > 0 && j.ieDone < j.ieTotal ? 0 : 1;
+      return [urgent, urgent === 0 ? d! : 999, started];
+    };
+    return (list || []).slice().sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      for (let i = 0; i < 3; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i];
+      return (a.sewStart || '9999').localeCompare(b.sewStart || '9999');
+    }).filter((j) => {
       if (j.status === 'archived') return false;
       const t = j.status === 'rejected' ? 'rejected' : j.status === 'approved' ? 'approved' : 'doing';
       if (t !== tab) return false;
@@ -67,7 +81,9 @@ export default function QaList() {
       <div className="flex flex-col gap-3.5 bg-ink px-5 pb-4 pt-[calc(env(safe-area-inset-top)+16px)] text-white">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs text-[#C9D1DB]">QA ngoài chuyền · THV</div>
+            <div className="text-xs text-[#C9D1DB]">
+              QA ngoài chuyền · THV · <Version />
+            </div>
             <h1 className="text-xl font-bold">Ảnh cần chụp</h1>
           </div>
           <div className="[&_a]:border-[#3A4654] [&_a]:text-white [&_button]:border-[#3A4654] [&_button]:text-[#C9D1DB]">
@@ -112,7 +128,22 @@ export default function QaList() {
                   {j.jo} · GO {j.go || '–'} · {j.category} · May {fmtDate(j.sewStart)}
                 </div>
               </div>
-              <StatusChip status={j.status} />
+              <div className="flex flex-col items-end gap-1">
+                <StatusChip status={j.status} />
+                {(() => {
+                  const d = daysUntil(j.bpo);
+                  if (d === null || d > BPO_ALERT_DAYS || j.status === 'approved') return null;
+                  const send = d - BPO_SEND_DAYS;
+                  return (
+                    <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${send <= 0 ? 'bg-bad text-white' : 'bg-bad-soft text-bad'}`}>
+                      {send < 0 ? 'Quá hạn gửi' : send === 0 ? 'Gửi hôm nay' : `Hạn gửi còn ${send} ngày`}
+                    </span>
+                  );
+                })()}
+                {j.ieDone > 0 && j.ieDone < j.ieTotal && j.status !== 'approved' && (
+                  <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[11px] font-semibold text-brand-dark">Làm tiếp</span>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {j.colors.map((c) => (

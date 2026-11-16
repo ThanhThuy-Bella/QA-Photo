@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { STATUS_INFO } from '@/lib/config';
+import { APP_VERSION, STATUS_INFO } from '@/lib/config';
+import { go } from '@/lib/nav';
 import type { SetStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -21,14 +22,15 @@ export function ErrorBox({ text }: { text: string }) {
 }
 
 export function TopBar({ title, sub, back, right }: { title: string; sub?: string; back?: string; right?: ReactNode }) {
+  const router = useRouter();
   return (
     <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-white px-3 py-2 pt-[calc(env(safe-area-inset-top)+8px)]">
       {back && (
-        <Link href={back} aria-label="Quay lại" className="flex h-11 w-11 items-center justify-center text-ink">
+        <button onClick={() => go(router, back)} aria-label="Quay lại" className="flex h-11 w-11 shrink-0 items-center justify-center text-ink">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <path d="m15 5-7 7 7 7" />
           </svg>
-        </Link>
+        </button>
       )}
       <div className="min-w-0 flex-1 px-1">
         <div className="truncate text-[17px] font-bold">{title}</div>
@@ -37,6 +39,10 @@ export function TopBar({ title, sub, back, right }: { title: string; sub?: strin
       {right}
     </header>
   );
+}
+
+export function Version({ className = '' }: { className?: string }) {
+  return <span className={`text-[10px] ${className}`}>QA Photo {APP_VERSION}</span>;
 }
 
 export function AccountMenu() {
@@ -76,7 +82,9 @@ export function AdminNav({ active }: { active: 'review' | 'final' | 'import' | '
   return (
     <div className="bg-ink text-white">
       <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3">
-        <span className="text-lg font-bold">QA Photo</span>
+        <span className="flex items-baseline gap-2 text-lg font-bold">
+          QA Photo <Version className="font-normal text-[#9AA5B1]" />
+        </span>
         <nav className="flex flex-1 flex-wrap gap-1">
           {items.map((i) => (
             <Link

@@ -109,6 +109,17 @@ export default function AdminReview() {
     [rows],
   );
   const [showAllAlerts, setShowAllAlerts] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
+
+  // Hàng duyệt: bộ chờ duyệt, gấp nhất (theo hạn gửi buyer) lên trước
+  const reviewQueue = useMemo(
+    () =>
+      (rows || [])
+        .filter((r) => r.status === 'submitted')
+        .sort((a, b) => (a.alert?.daysToSend ?? 99) - (b.alert?.daysToSend ?? 99) || (a.bpo_date || '9999').localeCompare(b.bpo_date || '9999')),
+    [rows],
+  );
 
   const kpi = useMemo(() => {
     const c = { submitted: 0, draft: 0, approved: 0, rejected: 0 };
@@ -125,6 +136,38 @@ export default function AdminReview() {
       .in('id', ids);
     if (error) throw new Error(error.message);
   };
+
+  // Duyệt lần lượt: đóng bộ hiện tại → tự mở bộ chờ duyệt tiếp theo
+  useEffect(() => {
+    if (!reviewing || sel || !rows) return;
+    const next = reviewQueue[0];
+    if (next) void openRow(next);
+    else setReviewing(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewing, sel, rows, reviewQueue]);
+
+  // Tự cập nhật khi QA gửi duyệt (Supabase Realtime) + làm mới định kỳ 60 giây
+  useEffect(() => {
+    if (!auth.ready) return;
+    const ch = supabase
+      .channel('admin-photo-sets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'photo_sets' }, (payload) => {
+        const n = payload.new as Partial<PhotoSet> | null;
+        const o = payload.old as Partial<PhotoSet> | null;
+        if (n?.status === 'submitted' && o?.status !== 'submitted') {
+          const id = Date.now() + Math.random();
+          setToasts((t) => [...t, { id, text: `QA vừa gửi duyệt ${n.jo_no} · ${n.color_code}` }]);
+          setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 8000);
+        }
+        void load();
+      })
+      .subscribe();
+    const poll = setInterval(() => void load(), 60000);
+    return () => {
+      clearInterval(poll);
+      void supabase.removeChannel(ch);
+    };
+  }, [auth.ready, load]);
 
   const approve = async (r: Row) => {
     if (!r.set) return;
@@ -222,17 +265,33 @@ export default function AdminReview() {
       <AdminNav active="review" />
       <div className="mx-auto flex max-w-[1360px] flex-col gap-4 px-4 py-5 md:px-6">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          {[
-            { l: `Cảnh báo BPOD (≤${BPO_ALERT_DAYS} ngày)`, v: alerts.length, c: alerts.length ? 'text-bad' : 'text-ok' },
-            { l: 'Chờ duyệt', v: kpi.submitted, c: 'text-brand-dark' },
-            { l: 'Đang chụp (nháp)', v: kpi.draft, c: 'text-warn' },
-            { l: 'Đã duyệt', v: kpi.approved, c: 'text-ok' },
-          ].map((k) => (
-            <div key={k.l} className="rounded-xl border border-line bg-white px-4 py-3">
-              <div className="text-xs text-muted">{k.l}</div>
-              <div className={`text-2xl font-bold ${k.c}`}>{k.v}</div>
-            </div>
-          ))}
+          {(
+            [
+              { f: 'alert', l: `Cảnh báo BPOD (≤${BPO_ALERT_DAYS} ngày)`, v: alerts.length, c: alerts.length ? 'text-bad' : 'text-ok' },
+              { f: 'submitted', l: 'Chờ duyệt', v: kpi.submitted, c: 'text-brand-dark' },
+              { f: 'draft', l: 'Đang chụp (nháp)', v: kpi.draft, c: 'text-warn' },
+              { f: 'approved', l: 'Đã duyệt', v: kpi.approved, c: 'text-ok' },
+            ] as const
+          ).map((k) => {
+            const on = fStatus === k.f;
+            return (
+              <button
+                key={k.f}
+                onClick={() => {
+                  setFStatus(on ? 'live' : k.f);
+                  document.getElementById('bang-chinh')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`rounded-xl border bg-white px-4 py-3 text-left transition hover:border-brand ${on ? 'border-brand ring-2 ring-brand/30' : 'border-line'}`}
+                title={on ? 'Bấm lần nữa để bỏ lọc' : 'Bấm để lọc bảng bên dưới'}
+              >
+                <div className="text-xs text-muted">
+                  {k.l}
+                  {on ? ' · đang lọc' : ''}
+                </div>
+                <div className={`text-2xl font-bold ${k.c}`}>{k.v}</div>
+              </button>
+            );
+          })}
           <Link href="/admin/cleanup" className="rounded-xl border border-line bg-white px-4 py-3">
             <div className="text-xs text-muted">Dung lượng ảnh (free 1 GB)</div>
             <div className={`text-2xl font-bold ${pct >= 90 ? 'text-bad' : pct >= 80 ? 'text-warn' : 'text-ink'}`}>
@@ -289,7 +348,7 @@ export default function AdminReview() {
         {msg && <div className="rounded-xl border border-ok/30 bg-ok-soft p-3 text-sm text-ok">{msg}</div>}
 
         <div className="flex flex-wrap items-start gap-4">
-          <section className="min-w-0 flex-[999_1_560px] rounded-xl border border-line bg-white">
+          <section id="bang-chinh" className="min-w-0 flex-[999_1_560px] scroll-mt-4 rounded-xl border border-line bg-white">
             <div className="flex flex-wrap items-end gap-2 border-b border-line p-3">
               <label className="flex flex-col gap-0.5 text-[11px] text-muted">
                 Tìm
@@ -308,6 +367,16 @@ export default function AdminReview() {
                 </select>
               </label>
               <span className="flex-1" />
+              <button
+                disabled={!reviewQueue.length || !!busy}
+                onClick={() => {
+                  setSel(null);
+                  setReviewing(true);
+                }}
+                className="h-9 rounded-lg bg-ink px-3 text-[13px] font-semibold text-white disabled:opacity-40"
+              >
+                ▶ Duyệt lần lượt ({reviewQueue.length})
+              </button>
               <span className="self-center text-xs text-muted">Đã chọn {checkedRows.length}</span>
               <button disabled={!approvable.length || !!busy} onClick={approveChecked} className={btn.small}>
                 Duyệt {approvable.length || ''} dòng chọn
@@ -401,8 +470,14 @@ export default function AdminReview() {
                     {sel.set?.submitted_at ? ` · gửi ${new Date(sel.set.submitted_at).toLocaleString('vi-VN')}` : ''}
                   </div>
                 </div>
-                <button onClick={() => setSel(null)} className="text-sm text-muted">
-                  Đóng
+                <button
+                  onClick={() => {
+                    setReviewing(false);
+                    setSel(null);
+                  }}
+                  className="text-sm text-muted"
+                >
+                  {reviewing ? 'Dừng duyệt' : 'Đóng'}
                 </button>
               </div>
               {kindOrder.map((k) => {
@@ -461,6 +536,13 @@ export default function AdminReview() {
             </aside>
           )}
         </div>
+      </div>
+      <div className="fixed right-4 top-4 z-50 flex flex-col gap-2">
+        {toasts.map((t) => (
+          <div key={t.id} className="rounded-xl bg-ink px-4 py-3 text-sm text-white shadow-lg">
+            🔔 {t.text}
+          </div>
+        ))}
       </div>
       <Lightbox src={view?.src || null} caption={view?.cap} onClose={() => setView(null)} />
     </main>

@@ -48,6 +48,9 @@ Công nghệ: Next.js 14 · Supabase (gói Free) · Vercel.
 - Chụp/chọn album xong → màn hình **Cắt ảnh**: app tự đặt khung (mác/nhãn/thẻ: tìm vùng trắng; gập gói/áo/thùng: tách khỏi nền), QA kéo khung, **Xoay 90°**, **Tự cắt lại**, **Không cắt** hoặc **Dùng ảnh**. Chỉ lưu ảnh đã cắt.
 - Ảnh nén cạnh dài 1600px (~0,3–0,4 MB). App cảnh báo ảnh mờ/tối trước khi lưu.
 
+## 5b. Cập nhật phiên bản
+Upload toàn bộ nội dung thư mục lên GitHub → Vercel tự build. Mỗi bản có file SQL kèm theo thì chạy 1 lần trong Supabase → SQL Editor (theo thứ tự): `update_v1.3.sql` (nếu chưa), `update_v1.5.sql`, `update_v2.0.sql`. Số phiên bản hiện ở góc trang QA và thanh Admin.
+
 ## 6. Dung lượng (gói Free 1 GB)
 - Trang **Tải về & dọn ảnh**: thanh dung lượng; bộ ảnh quá 6 tháng được chọn sẵn → **1. Tải ZIP** (ảnh theo Style/Lot_JO/Màu + Excel IE) → kiểm tra → **2. Xóa khỏi cloud**.
 - Gói Free tự tạm dừng project nếu 7 ngày không ai dùng → vào supabase.com bấm *Restore*.

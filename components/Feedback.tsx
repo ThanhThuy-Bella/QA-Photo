@@ -120,22 +120,29 @@ export function ConfirmDialog({
   );
 }
 
-/** Xóa có hoàn tác: ẩn ngay, chỉ xóa thật sau UNDO_SECONDS giây (hoặc khi rời trang). */
+/**
+ * Xóa có hoàn tác: ẩn ngay, chỉ xóa thật sau UNDO_SECONDS giây (hoặc khi rời trang).
+ * Lưu ý (sửa lỗi v2.0): mọi hàm đều ổn định (không đổi giữa các lần render) và chỉ setState khi thật sự có thay đổi –
+ * bản cũ tạo vòng render vô hạn làm Safari "đơ" nút chuyển trang.
+ */
 export function useUndoDelete<T extends { id: number }>(doDelete: (items: T[]) => Promise<void>, onError: (msg: string) => void) {
   const [pending, setPending] = useState<T[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<T[]>([]);
   const del = useRef(doDelete);
+  const errRef = useRef(onError);
   del.current = doDelete;
+  errRef.current = onError;
 
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     const items = pendingRef.current;
+    if (!items.length) return;
     pendingRef.current = [];
     setPending([]);
-    if (items.length) del.current(items).catch((e) => onError((e as Error).message));
-  }, [onError]);
+    del.current(items).catch((e) => errRef.current((e as Error).message));
+  }, []);
 
   const remove = useCallback(
     (item: T) => {
@@ -150,10 +157,12 @@ export function useUndoDelete<T extends { id: number }>(doDelete: (items: T[]) =
   const undo = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    if (!pendingRef.current.length) return;
     pendingRef.current = [];
     setPending([]);
   }, []);
 
+  // Rời trang khi còn ảnh chờ xóa → xóa luôn (chỉ chạy 1 lần lúc rời trang)
   useEffect(() => () => flush(), [flush]);
 
   const hidden = new Set(pending.map((p) => p.id));

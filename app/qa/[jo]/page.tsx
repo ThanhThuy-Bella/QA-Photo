@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRequire } from '@/lib/auth';
@@ -14,6 +13,7 @@ import { PhotoSlot } from '@/components/PhotoSlot';
 import { Lightbox } from '@/components/Lightbox';
 import { CropModal } from '@/components/CropModal';
 import { ConfirmDialog, QueueBadge, UndoBar, useUndoDelete } from '@/components/Feedback';
+import { go } from '@/lib/nav';
 
 interface OtherLabel {
   lot: string;
@@ -42,6 +42,17 @@ export default function CapturePage() {
   const [askSubmit, setAskSubmit] = useState(false);
   const [reuseOpen, setReuseOpen] = useState(false);
   const [sent, setSent] = useState('');
+  const [countdown, setCountdown] = useState(0);
+  useEffect(() => {
+    if (!sent) return;
+    setCountdown(3);
+    const t = setInterval(() => setCountdown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [sent]);
+  useEffect(() => {
+    if (sent && countdown === 0) go(router, '/qa');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
 
   const load = useCallback(async () => {
     const { data: r, error } = await supabase.from('jo_colors').select('*').eq('jo_no', jo).order('color_code');
@@ -327,12 +338,12 @@ export default function CapturePage() {
                 })}
               </div>
             )}
-            <Link
-              href={`/qa/${encodeURIComponent(jo)}/defect?color=${encodeURIComponent(color)}`}
+            <button
+              onClick={() => go(router, `/qa/${encodeURIComponent(jo)}/defect?color=${encodeURIComponent(color)}`)}
               className={`flex h-11 items-center justify-center rounded-lg text-sm font-semibold ${editable ? 'bg-bad text-white' : 'border border-line text-ink'}`}
             >
               {editable ? '+ Chụp / xem / xóa ảnh lỗi' : `Xem ${defects.length} ảnh lỗi`}
-            </Link>
+            </button>
           </div>
         </section>
 
@@ -363,7 +374,7 @@ export default function CapturePage() {
             <button
               onClick={() => {
                 retry();
-                router.push('/qa');
+                go(router, '/qa');
               }}
               className={`${btn.ghost} flex-1`}
             >
@@ -412,6 +423,7 @@ export default function CapturePage() {
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center" role="dialog" aria-modal="true">
           <div className="flex w-full max-w-sm flex-col gap-3 rounded-2xl bg-white p-5 text-ink">
             <h2 className="text-base font-bold">✓ Đã gửi duyệt màu {sent}</h2>
+            {countdown > 0 && <p className="text-xs text-brand-dark">Tự về danh sách JO sau {countdown} giây…</p>}
             <p className="text-sm text-muted">
               {info.cust_style} · {info.lot}. Admin sẽ duyệt trên trang Admin.
             </p>
@@ -421,16 +433,17 @@ export default function CapturePage() {
                 <button
                   onClick={() => {
                     setSent('');
+                    setCountdown(-1);
                     setColor(next.color_code);
                     window.scrollTo({ top: 0 });
                   }}
                   className="h-12 rounded-xl border border-[#CBD2DA] text-sm font-semibold"
                 >
-                  Chụp tiếp màu {next.color_code}
+                  Ở lại – chụp tiếp màu {next.color_code}
                 </button>
               ) : null;
             })()}
-            <button onClick={() => router.push('/qa')} className="h-12 rounded-xl bg-brand text-sm font-semibold text-white">
+            <button onClick={() => go(router, '/qa')} className="h-12 rounded-xl bg-brand text-sm font-semibold text-white">
               Về danh sách JO (làm lot khác)
             </button>
           </div>

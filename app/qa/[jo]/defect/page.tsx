@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { deletePhotos, signedUrls } from '@/lib/photos';
 import { clearDraft, enqueue, jobBlob, loadDraft, removeJob, saveDraft, useQueue, type UploadJob } from '@/lib/queue';
 import { QueueBadge, UndoBar, useUndoDelete } from '@/components/Feedback';
+import { go } from '@/lib/nav';
 import type { Compressed } from '@/lib/image';
 import { DEFECT_PHOTO_HINT } from '@/lib/config';
 import type { DefectPosition, DefectType, JoColor, Photo, PhotoSet, Severity } from '@/lib/types';
@@ -189,7 +190,7 @@ function DefectInner() {
       setPreview('');
       setNote('');
       if (next) window.scrollTo({ top: 0, behavior: 'smooth' });
-      else router.push(`/qa/${encodeURIComponent(jo)}`);
+      else go(router, `/qa/${encodeURIComponent(jo)}`);
     } catch (e) {
       setErr('Không lưu được ảnh vào máy: ' + (e as Error).message);
     } finally {
