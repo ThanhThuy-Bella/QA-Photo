@@ -67,6 +67,7 @@ export default async function FormPrintPage({ searchParams }: { searchParams: SP
               <img src={qr(p.plan_id)} alt={`QR ${p.plan_id}`} width={92} height={92} />
               <div className="text-xs leading-snug">
                 <div className="font-bold text-sm">{p.jo}</div>
+                {p.style && <div>Style {p.style}</div>}
                 <div>{p.buyer_po}</div>
                 <div>{p.brand_code} · {p.plan_id}</div>
                 <div className="font-semibold mt-1">Thùng mẫu {i + 1}/{p.sample_cartons}</div>
